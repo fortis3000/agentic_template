@@ -1,0 +1,44 @@
+[project]
+name = "DS_project"
+version = "0.0.1"
+description = "Data Science project template"
+authors = [
+  {name = "Mikhail S.", email = "fortis3000@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "python-json-logger==2.0.7",
+]
+
+[project.optional-dependencies]
+lint = [
+    "ruff==0.14.2",
+    "bandit>=1.8.0",
+    "pymarkdownlnt>=0.9.0",
+]
+test = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.8",
+    "pytest-cov>=5.0.0",
+]
+dev = [
+    "jupyter",
+]
+all = [
+    "DS_project[lint,test,dev]",
+]
+
+[tool.ruff]
+# Formatting
+line-length = 100
+exclude = [".pytest_cache", "**/__pycache__/", "**/*.ipynb_checkpoints/", "*.ipynb"]
+# Linting
+lint.extend-select = ["F", "I", "PL", "N"]
+lint.extend-ignore = ["D", "E501", "PLR0913", "E402", "C403","F405", "E203","E731", "E712"]
+
+[tool.ruff.lint.isort]
+case-sensitive = true
+
+[tool.bandit]
+exclude_dirs = [".venv", "tests"]
