@@ -4,6 +4,14 @@
 
 set -e
 
+# Load GitHub token from .env if available
+if [ -f .env ]; then
+  token=$(grep -E "^(GH_TOKEN|GITHUB_TOKEN)=" .env | head -n 1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+  if [ -n "$token" ]; then
+    export GH_TOKEN="$token"
+  fi
+fi
+
 # If no issue number is provided, list open issues
 if [ -z "$1" ]; then
   echo "No issue number provided. Listing recent open issues:"

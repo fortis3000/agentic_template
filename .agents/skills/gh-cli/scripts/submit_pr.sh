@@ -7,6 +7,14 @@
 
 set -e
 
+# Load GitHub token from .env if available
+if [ -f .env ]; then
+  token=$(grep -E "^(GH_TOKEN|GITHUB_TOKEN)=" .env | head -n 1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+  if [ -n "$token" ]; then
+    export GH_TOKEN="$token"
+  fi
+fi
+
 # Verify arguments
 if [ "$#" -lt 2 ]; then
   echo "Error: Missing arguments."
