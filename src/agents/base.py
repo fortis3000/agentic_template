@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Union
 
-import nest_asyncio2
+import nest_asyncio
 
 
 @dataclass
@@ -87,7 +87,7 @@ class BaseAgent(ABC):
             # If an event loop is already running, use run_coroutine_threadsafe or a wrapper
             # But in typical script environment, we can run it.
             # Let's run it using a clean runner or standard run.
-            nest_asyncio2.apply()
+            nest_asyncio.apply()
         return asyncio.run(self.call(inputs))
 
     @abstractmethod
