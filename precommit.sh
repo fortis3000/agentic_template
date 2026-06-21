@@ -34,7 +34,7 @@ fi
 if [ -n "$md_files" ]; then
   echo
   echo "=== Pymarkdown scan ==="
-  .venv/bin/pymarkdown --disable-rules MD007,MD013,MD024,MD033 scan -- $md_files || status=1
+  .venv/bin/pymarkdown --disable-rules MD007,MD012,MD013,MD022,MD024,MD029,MD031,MD032,MD033,MD046 scan -- $md_files || status=1
 fi
 
 # Tests

@@ -1,45 +1,39 @@
-Standartized DS project template
-==============================
+# Standartized Agentic Project Template
 
-Project Organization
-------------
+## Project Organization
 
-    ├── Makefile           <- Makefile with commands like `make data` or `make train`
+    ├── Makefile           <- Makefile with commands like `make precommit`
     ├── README.md          <- The top-level README for developers using this project.
     ├── pyproject.toml     <- Project configuration for dependencies, linting, formatting, etc.
     ├── uv.lock            <- The lock file for reproducing the analysis environment.
+    ├── .env.example       <- Template for environment variables and API keys
     ├── data
     │   ├── external       <- Data from third party sources.
     │   ├── interim        <- Intermediate data that has been transformed.
     │   ├── processed      <- The final, canonical data sets for modeling.
     │   └── raw            <- The original, immutable data dump.
     │
-    ├── models             <- Trained and serialized models, model predictions, or model summaries
-    │
-    ├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-    │                         the creator's initials, and a short `-` delimited description, e.g.
-    │                         `1.0-jqp-initial-data-exploration`.
+    ├── notebooks          <- Jupyter notebooks.
     │
     ├── references         <- Data dictionaries, manuals, and all other explanatory materials.
     │
-    ├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
-    │   └── figures        <- Generated graphics and figures to be used in reporting
+    ├── docker             <- Docker configurations for agent-app and Arize Phoenix setup.
     │
     └── src                <- Source code for use in this project.
         ├── __init__.py    <- Makes src a Python module
         │
-        ├── data           <- Scripts to download or generate data
+        ├── agents         <- SDK-agnostic agent implementations and orchestration.
         │
-        ├── features       <- Scripts to turn raw data into features for modeling
+        ├── evals          <- Evaluation frameworks (Arize Phoenix, custom LLM evals).
         │
-        ├── models         <- Scripts to train models and then use trained models to make
-        │   │                 predictions
+        ├── prompts        <- System and template prompts.
         │
-        └── visualization  <- Scripts to create exploratory and results oriented visualizations
+        ├── tools          <- Custom tools and functional integrations.
+        │
+        └── utils          <- Shared utilities (e.g., logging)
 
 
-Logging
--------
+## Logging
 
 This project provides a general-purpose logger utility in `src/utils/logger.py`.
 
@@ -58,11 +52,11 @@ You can attach this logger to any module or script in the project.
 --------
 
 ## Goals
-- Reduce time to establish a repo specifically for DS needs.
+- Reduce time to establish a repo specifically for Agentic AI needs.
 - To align data scientists in terms of skills and tools used.
 - Make project standard, easier to observe and predictable.
 
-## Description:
+## Description
 
 ### Project structure
 

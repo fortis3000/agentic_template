@@ -1,12 +1,23 @@
 services:
-  app:
+  agent-app:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    image: ds-project:latest
+    image: agentic-template:latest
     volumes:
-      - ./data:/app/data
-      - ./models:/app/models
-      - ./notebooks:/app/notebooks
-    stdin_open: true  # docker run -i
-    tty: true         # docker run -t
+      - .:/app
+    environment:
+      - PHOENIX_CLIENT_HEADERS=api_key=${PHOENIX_API_KEY:-}
+      - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006
+    env_file:
+      - .env
+    depends_on:
+      - phoenix
+    stdin_open: true
+    tty: true
+
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    ports:
+      - "6060:6060" # Phoenix UI
+      - "6006:6006" # OTLP gRPC endpoint

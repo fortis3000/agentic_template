@@ -2,24 +2,24 @@
 
 ## Repository goals
 
-- Data Science project template — standardized structure, tooling, and workflows for DS projects.
+- Agentic project template — standardized structure, tooling, and workflows for building AI Agents.
+- Framework-agnostic agent support (e.g. `google-antigravity-sdk`, `pydantic-ai`).
 - Keep changes small, reviewable, and consistent with existing style.
 
 ## High-signal repo map
 
 - `src/`: main source code
+  - `agents/`: SDK-agnostic agent definitions and orchestration logic
+  - `tools/`: custom tools and functional integrations for agents
+  - `prompts/`: system prompts and templates
+  - `evals/`: evaluation frameworks and scripts (e.g. Phoenix)
   - `data/`: data download and generation scripts
-  - `features/`: raw data to features transformation
-  - `models/`: model training and prediction scripts
-  - `visualization/`: EDA and results visualizations
   - `utils/`: shared utilities (logging, etc.)
 - `data/`: project data (raw, interim, processed, external)
-- `models/`: trained and serialized models
 - `notebooks/`: Jupyter notebooks (numbered naming convention)
-- `tests/`: test suite
-- `docker/`: Dockerfile and container configuration
-- `reports/figures/`: generated graphics and figures
-- `references/`: data dictionaries and explanatory materials
+- `tests/`: standard test suite
+- `docker/`: Dockerfile and container configuration for agents and Phoenix observability
+- `references/`: explanatory materials
 
 ## Coding style
 
