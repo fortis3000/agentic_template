@@ -40,13 +40,36 @@ else
   description="$3"
 fi
 
-# 1. Run local precommit checks if the script exists
-if [ -f ".agents/skills/python-pr-prep/scripts/precommit.sh" ]; then
-  echo "Running pre-commit checks..."
-  bash .agents/skills/python-pr-prep/scripts/precommit.sh
+# 1. Run Docker-sandboxed validation checks (Ruff, Bandit, Pytest)
+echo "Checking if Docker is available for sandboxed validation..."
+if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  echo "Docker daemon is running. Building validation container..."
+  # Build using the Dockerfile in the current directory (which is copied/accessible in the worktree)
+  docker build -f docker/Dockerfile -t agentic-template:latest .
+
+  echo "Running sandboxed validations inside Docker container..."
+  docker run --rm -v "$(pwd)":/app agentic-template:latest bash -c "
+    set -e
+    echo '=== Ruff format check ==='
+    uv run ruff format --check src/ tests/
+    echo '=== Ruff lint check ==='
+    uv run ruff check src/ tests/
+    echo '=== ty type check ==='
+    uv run ty check src/ tests/
+    echo '=== Bandit security check ==='
+    uv run bandit -c pyproject.toml -r src/
+    echo '=== Pytest ==='
+    uv run python -m pytest -v
+  "
 else
-  echo "No local precommit check script found, staging files directly..."
+  echo "WARNING: Docker is not running or not installed. Running local precommit script instead..."
+  if [ -f ".agents/skills/python-pr-prep/scripts/precommit.sh" ]; then
+    bash .agents/skills/python-pr-prep/scripts/precommit.sh
+  else
+    echo "No validation script found. Staging files directly..."
+  fi
 fi
+
 
 # 2. Stage all changes
 echo "Staging all changes..."
