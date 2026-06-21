@@ -1,0 +1,1 @@
+Hello assistant. Please assist me with the following query: {query}
