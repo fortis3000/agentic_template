@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pre-commit validation script
+# Pre-commit validation script for python-pr-prep skill
 # Runs linting, testing, and security checks on changed files.
 
 echo "Collecting changed files..."
