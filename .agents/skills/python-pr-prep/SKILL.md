@@ -10,34 +10,49 @@ description: Prepare current Python work for PR using latest best practices and 
 **Instructions:**
 
 1. **Virtual Environment Setup & Dev Dependencies:**
-   * Ensure you are executing commands within the local virtual environment `.venv`.
-   * Activate the environment:
-     ```bash
-     source .venv/bin/activate
-     ```
    * Ensure dev dependencies are fully synchronized:
      ```bash
      uv sync --extra all
      ```
+   * All subsequent commands, tests, and formatting checks should be prefixed and run with `uv run` to ensure consistency.
 
 2. **Cleanup:**
    * Review currently modified files (`git status` or `git diff`). Remove any:
      * `print()` statements or lingering `breakpoint()` / `import pdb` traces. Use the standard logger from `src/utils/logger.py` where logging is needed.
      * Commented-out code blocks.
      * Temporary "hack" fixes or dangling `# TODO` comments that should be resolved in this PR.
+   * **Documentation Check:** Verify that extensive (but non-redundant) documentation has been added or updated for any new functionality introduced in this PR (e.g., in `README.md` or dedicated markdown files).
 
 3. **Verify with Bundled Validation Script:**
-   * Run the bundled pre-commit script to format code, check lints/security/markdown rules, and verify tests pass on changed files:
+   * Run the pre-commit script to format code, check lints/security/markdown rules, and verify tests pass on changed files:
      ```bash
-     bash .agents/skills/python-pr-prep/scripts/precommit.sh
+     make precommit
      ```
+     or:
+     ```bash
+     bash precommit.sh
+     ```
+     *Note: If Docker is used (as recommended in python-coder), run these validation checks within the Docker sandbox as specified in the python-coder skill.*
 
 4. **Report & Review:**
-   * Summarize the cleanup status (e.g., "All tests and precommit checks passing, removed temporary prints, fixed type warnings").
+   * Summarize the cleanup and documentation status (e.g., "All tests passing, removed temporary prints, added user guide documentation for new feature").
    * **Action:** Ask the user to review the Git diff closely to ensure no intended code was accidentally removed.
    * **Commit:** Once reviewed, provide the command to commit the changes:
      ```bash
-     git commit -m "Prepare for PR: format/lint code, verify tests pass, and remove debug traces"
+     git commit -m "Prepare for PR: format/lint code, verify tests pass, remove debug traces, and add documentation"
      ```
    * **Draft PR:** Provide the user with the exact `gh` CLI command to draft or create the PR.
      * *Example:* `gh pr create --title "Your PR Title" --body "Summary of changes..." --draft`
+
+5. **Post-PR Cleanup (Git Worktrees):**
+   * Once the pull request is merged or closed, clean up the worktree:
+     * Navigate back to the repository root directory:
+       ```bash
+       cd ../..
+       ```
+     * Remove the worktree and delete the local branch:
+       ```bash
+       git worktree remove .worktrees/<branch-name>
+       git branch -d <branch-name>
+       ```
+

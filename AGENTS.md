@@ -55,4 +55,7 @@ Use the `/precommit` skill to validate changes before committing.
 ## Safety & secrets
 
 - Respect `.gitignore` file. Do not access files mentioned in `.gitignore`.
+- Never read `.env` file. It's containing secrets.
 - Never commit secrets. Treat `.env` as sensitive.
+- Never use secrets in exposed forms. If so, notify user that secrets were used openly and suggest to remove them and use tokens instead.
+- When you must use a secret, ask user to provide a token instead.

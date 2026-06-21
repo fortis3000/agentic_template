@@ -11,21 +11,26 @@ Comprehensive reference for GitHub CLI (gh) - work seamlessly with GitHub from t
 
 ## Recommended Workflow Scripts
 
-For typical workflows, run the bundled scripts below to ensure consistent and robust execution:
+For typical workflows, run the bundled scripts below to ensure consistent, isolated, and robust execution using Git worktrees and Docker containers:
 
 ### 1. Start Implementing an Issue
-To assign an issue to yourself and automatically create/checkout a linked development branch, run:
+To assign an issue to yourself, create a linked development branch, and check it out in a dedicated Git worktree under `.worktrees/`, run:
 ```bash
 bash .agents/skills/gh-cli/scripts/start_issue.sh <issue_number> [optional_branch_name]
 ```
+Then navigate to your new worktree:
+```bash
+cd .worktrees/<branch_name>
+```
 
 ### 2. Submit Pull Request (Semantic Commit)
-To run precommit checks, stage all changes, commit semantically, push, and create a draft pull request, run:
+Navigate to the root of your worktree and run the submit script to run Docker-sandboxed tests/linters, stage changes, commit semantically, push, and draft a pull request:
 ```bash
 bash .agents/skills/gh-cli/scripts/submit_pr.sh <type> [scope] <description>
 ```
 *Allowed types:* `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`.
 *Example:* `bash .agents/skills/gh-cli/scripts/submit_pr.sh feat auth "add google login"`
+
 
 ## Prerequisites
 

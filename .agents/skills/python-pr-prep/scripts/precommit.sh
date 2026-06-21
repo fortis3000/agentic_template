@@ -19,29 +19,33 @@ status=0
 if [ -n "$python_files" ]; then
   echo
   echo "=== Ruff format ==="
-  .venv/bin/ruff format -- $python_files || status=1
+  uv run ruff format -- $python_files || status=1
 
   echo
   echo "=== Ruff check ==="
-  .venv/bin/ruff check -- $python_files || status=1
+  uv run ruff check -- $python_files || status=1
+
+  echo
+  echo "=== ty type check ==="
+  uv run ty check -- $python_files || status=1
 
   echo
   echo "=== Bandit security check ==="
-  .venv/bin/bandit -c pyproject.toml -- $python_files || status=1
+  uv run bandit -c pyproject.toml -- $python_files || status=1
 fi
 
 # Markdown linting
 if [ -n "$md_files" ]; then
   echo
   echo "=== Pymarkdown scan ==="
-  .venv/bin/pymarkdown --enable-extensions front-matter --disable-rules MD007,MD012,MD013,MD022,MD024,MD029,MD031,MD032,MD033,MD046 scan -- $md_files || status=1
+  uv run pymarkdown --enable-extensions front-matter --disable-rules MD007,MD012,MD013,MD022,MD024,MD029,MD031,MD032,MD033,MD046 scan -- $md_files || status=1
 fi
 
 # Tests
 if [ -n "$test_files" ]; then
   echo
   echo "=== Pytest ==="
-  .venv/bin/python -m pytest -v -- $test_files || status=1
+  uv run python -m pytest -v -- $test_files || status=1
 fi
 
 echo

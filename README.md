@@ -121,26 +121,14 @@ To follow Single-Source-Of-Truth concept it makes sense to use [pyproject.toml](
 #### uv
 Newly announced [uv tool](https://github.com/astral-sh/uv).
 
-To create new virtual environment:
+To initialize the virtual environment and install all dependencies:
 ```bash
-uv venv -p 3.13
+uv sync --extra all
 ```
 
-You might need to install or provide path to python 3.13 first.
-
-Activate an environment on macOS and Linux:
+To run any script or command inside the environment:
 ```bash
-source .venv/bin/activate
-```
-
-On Windows:
-```shell
-.venv\Scripts\activate
-```
-
-To install dependencies from `pyproject.toml` (and `uv.lock`):
-```bash
-uv pip sync --extra dev --extra lint --extra test
+uv run python <script.py>
 ```
 
 To update `uv.lock` file:
@@ -153,10 +141,10 @@ Both for code linting and formatting Ruff package is proposed to use. See [here]
 
 Commands:
 ```bash
-ruff format .
-ruff check .
+uv run ruff format .
+uv run ruff check .
 
-ruff check . --fix
+uv run ruff check . --fix
 ```
 
 ### CI/CD: GitHub Actions
@@ -170,8 +158,8 @@ This project uses [pytest](https://docs.pytest.org/en/stable/) for running tests
 To run the tests and generate a coverage report, use the following commands:
 
 ```bash
-coverage run -m pytest -v .
-coverage report -m
+uv run coverage run -m pytest -v .
+uv run coverage report -m
 ```
 
 The CI is configured to fail if the test coverage is below 80%.
@@ -206,3 +194,45 @@ or using `.sh` file directly:
 ```bash
 bash ./precommit.sh
 ```
+
+## Isolated Development Workflow
+
+To ensure secure software development lifecycle (SSDLC) principles, workspace isolation, and reproducible test results, this repository supports and enforces the use of Git worktrees and Docker sandboxing.
+
+### 1. Worktree Isolation
+Create a dedicated Git worktree inside `.worktrees/` to work on an issue. This keeps your main workspace clean and allows for parallel development:
+```bash
+bash .agents/skills/gh-cli/scripts/start_issue.sh <issue_number> [optional_branch_name]
+cd .worktrees/<branch_name>
+```
+
+### 2. Docker Sandboxed Validation
+To execute tests and linters without contaminating the host system and ensure correct dependencies, build and run inside a Docker container:
+```bash
+# Build the validation container
+docker build -f docker/Dockerfile -t agentic-template:latest .
+
+# Run validations (format, lint, security scans, and tests)
+docker run --rm -v "$(pwd)":/app agentic-template:latest bash -c "
+  uv run ruff format --check src/ tests/ && \
+  uv run ruff check src/ tests/ && \
+  uv run ty check src/ tests/ && \
+  uv run bandit -c pyproject.toml -r src/ && \
+  uv run pytest -v
+"
+```
+
+### 3. Submit Pull Request
+When inside the worktree, run the submission script to validate, commit semantically, push, and open a draft PR:
+```bash
+bash .agents/skills/gh-cli/scripts/submit_pr.sh <type> [scope] <description>
+```
+
+### 4. Cleanup
+After merging or completing the work, return to the project root and clean up the worktree:
+```bash
+cd ../..
+git worktree remove .worktrees/<branch-name>
+git branch -d <branch-name>
+```
+
