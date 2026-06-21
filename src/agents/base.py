@@ -91,7 +91,7 @@ class BaseAgent(ABC):
         return asyncio.run(self.call(inputs))
 
     @abstractmethod
-    async def call_stream(self, inputs: list[AgentInputPart]) -> AsyncIterator[str]:
+    def call_stream(self, inputs: list[AgentInputPart]) -> AsyncIterator[str]:
         """Asynchronously call the agent and stream the text response.
 
         Args:
