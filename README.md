@@ -49,6 +49,53 @@ logger.error("This is an error message.")
 
 You can attach this logger to any module or script in the project.
 
+## Agentic Framework
+
+The template provides an SDK-agnostic agent interface and generator that spawns Google Antigravity SDK agents from YAML configurations.
+
+### Directory Structure for Agents
+- **`src/agents/`**: Core definitions, abstractions, prompt management, and SDK wrappers.
+- **`src/prompts/`**: Directory for reusable system and user prompt templates.
+- **`configs/`**: Directory for agent YAML configuration files.
+
+### Spawning and Calling Agents (Usage Example)
+
+Here is a working example demonstrating how to load a configuration, render templates, and execute an agent in both streaming and non-streaming modes:
+
+```python
+import asyncio
+from src.agents import AntigravityAgentGenerator, TextPart, ImagePart
+
+async def main():
+    # 1. Initialize the agent generator
+    generator = AntigravityAgentGenerator(prompt_base_dir="src/prompts")
+    
+    # 2. Create the agent from YAML config, supplying system prompt variables dynamically
+    agent = generator.create_agent(
+        "configs/agent_config.yaml",
+        system_variables={"role": "Senior AI Architect"}
+    )
+    
+    # 3. Call the agent (non-streaming)
+    # Supplying a dictionary will format the default user prompt from the config
+    response = await agent.call(inputs={"query": "Explain quantum computing in one sentence."})
+    print("--- Non-streaming Response ---")
+    print(response)
+    
+    # 4. Call the agent (streaming)
+    print("\n--- Streaming Response ---")
+    async for chunk in agent.call_stream(inputs="Tell me a joke about Python."):
+        print(chunk, end="", flush=True)
+    print()
+
+    # 5. Multimodal Call (Text and Image)
+    # image = ImagePart.from_file("data/raw/example.png")
+    # response = await agent.call(inputs=["Describe this image", image])
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
 --------
 
 ## Goals

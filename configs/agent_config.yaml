@@ -1,0 +1,14 @@
+agent:
+  name: "demo_agent"
+  model: "gemini-3.5-flash"
+  system_prompt_path: "src/prompts/system_prompt.txt"
+  user_prompt_path: "src/prompts/user_prompt.txt"
+  app_data_dir: "data"
+  streaming: false
+  tools:
+    - "get_weather"
+  mcp_servers:
+    filesystem:
+      type: "stdio"
+      command: "npx"
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "./data"]

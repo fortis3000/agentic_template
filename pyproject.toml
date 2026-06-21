@@ -14,6 +14,8 @@ dependencies = [
     "arize-phoenix",
     "google-api-python-client>=2.197.0",
     "google-auth>=2.55.0",
+    "pyyaml",
+    "nest-asyncio",
 ]
 
 [project.optional-dependencies]
