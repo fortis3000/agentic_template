@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .agents/scripts/validate_tool_call.py",
+            "command": "uv run python .agents/scripts/validate_tool_call.py",
             "timeout": 10
           }
         ]
