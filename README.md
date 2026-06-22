@@ -69,19 +69,19 @@ from src.agents import AntigravityAgentGenerator, TextPart, ImagePart
 async def main():
     # 1. Initialize the agent generator
     generator = AntigravityAgentGenerator(prompt_base_dir="src/prompts")
-    
+
     # 2. Create the agent from YAML config, supplying system prompt variables dynamically
     agent = generator.create_agent(
         "configs/agent_config.yaml",
         system_variables={"role": "Senior AI Architect"}
     )
-    
+
     # 3. Call the agent (non-streaming)
     # Supplying a dictionary will format the default user prompt from the config
     response = await agent.call(inputs={"query": "Explain quantum computing in one sentence."})
     print("--- Non-streaming Response ---")
     print(response)
-    
+
     # 4. Call the agent (streaming)
     print("\n--- Streaming Response ---")
     async for chunk in agent.call_stream(inputs="Tell me a joke about Python."):
@@ -147,6 +147,9 @@ uv run ruff check .
 uv run ruff check . --fix
 ```
 
+### Security: Semgrep
+A custom Semgrep configuration is provided under `.semgrep/rules.yaml` to scan the codebase for security concerns, such as hardcoded API key prefixes in Python files.
+
 ### CI/CD: GitHub Actions
 
 As a baseline, CI with integrated code style is provided (see `.github/workflows/ci.yml`). The current setup is based on using public Actions and configuring CI with `pyproject.toml` file. It is also possible to use custom Actions.
@@ -189,10 +192,34 @@ Codestyle functionality could be applied locally using the Makefile created and 
 make precommit
 ```
 
-or using `.sh` file directly:
+### Secure Coding Standards
 
+Secure coding standards are defined in [.agents/CONTEXT.md](file://./.agents/CONTEXT.md) and focus on:
+1. **Tool Input Validation** (using strict Pydantic schemas).
+2. **No Shell Execution** (restricting `run_command` usage).
+3. **Pre-Commit Remediation Loop** (automatic / standard linting and Semgrep compliance).
+
+### Pre-commit Hooks
+
+Git pre-commit hooks are configured in [.pre-commit-config.yaml](file://./.pre-commit-config.yaml) to run on commit:
+- `end-of-file-fixer` (ensures files end with a single newline)
+- `trailing-whitespace` (trims trailing whitespaces)
+- `Ruff Format` (formats Python code)
+- `Ruff Check` (lints Python code)
+- `Ty Type Check` (verifies type safety)
+- `Bandit Security Check` (checks for common security issues)
+- `Pymarkdown Scan` (verifies Markdown compliance)
+- `Pytest Suite` (runs the entire test suite on every commit to ensure no regressions)
+- `Semgrep Scan` (runs Semgrep security scans on changed Python files using the custom rules in `.semgrep/rules.yaml` with the `--error` flag to block commits with findings)
+
+To activate these hooks locally, run:
 ```bash
-bash ./precommit.sh
+uv run pre-commit install
+```
+
+To run all hooks manually across all files:
+```bash
+uv run pre-commit run --all-files
 ```
 
 ## Isolated Development Workflow
@@ -235,4 +262,3 @@ cd ../..
 git worktree remove .worktrees/<branch-name>
 git branch -d <branch-name>
 ```
-

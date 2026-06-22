@@ -62,11 +62,11 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
     uv run python -m pytest -v
   "
 else
-  echo "WARNING: Docker is not running or not installed. Running local precommit script instead..."
-  if [ -f ".agents/skills/python-pr-prep/scripts/precommit.sh" ]; then
-    bash .agents/skills/python-pr-prep/scripts/precommit.sh
+  echo "WARNING: Docker is not running or not installed. Running pre-commit run instead..."
+  if command -v uv >/dev/null 2>&1; then
+    uv run pre-commit run
   else
-    echo "No validation script found. Staging files directly..."
+    pre-commit run
   fi
 fi
 

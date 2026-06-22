@@ -1,10 +1,11 @@
 import os
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.agents.base import ImagePart, TextPart
-from src.agents.google_antigravity import AntigravityAgentGenerator
+from src.agents.base import AgentInputPart, ImagePart, TextPart
+from src.agents.google_antigravity import AntigravityAgent, AntigravityAgentGenerator
 from src.agents.prompt_manager import PromptManager
 
 
@@ -71,10 +72,13 @@ agent:
         pass
 
     generator = AntigravityAgentGenerator(prompt_base_dir=tmp_path)
-    agent = generator.create_agent(
-        str(config_file),
-        system_variables={"role": "assistant"},
-        tools_registry={"custom_tool": mock_tool},
+    agent = cast(
+        AntigravityAgent,
+        generator.create_agent(
+            str(config_file),
+            system_variables={"role": "assistant"},
+            tools_registry={"custom_tool": mock_tool},
+        ),
     )
 
     assert agent.config.model == "gemini-3.5-flash"
@@ -83,8 +87,10 @@ agent:
     assert agent.config.tools[0] == mock_tool
     assert len(agent.config.mcp_servers) == 1
     assert agent.config.mcp_servers[0].name == "filesystem"
-    assert agent.config.mcp_servers[0].command == "npx"
-    assert os.path.isabs(agent.config.app_data_dir)
+    assert getattr(agent.config.mcp_servers[0], "command") == "npx"
+    app_dir = agent.config.app_data_dir
+    assert app_dir is not None
+    assert os.path.isabs(app_dir)
 
 
 @pytest.mark.asyncio
@@ -103,7 +109,7 @@ agent:
     )
 
     generator = AntigravityAgentGenerator(prompt_base_dir=tmp_path)
-    agent = generator.create_agent(str(config_file))
+    agent = cast(AntigravityAgent, generator.create_agent(str(config_file)))
 
     # Mock the G_Agent context manager and response
     mock_response = AsyncMock()
@@ -149,25 +155,27 @@ def test_agent_inputs_mapping(tmp_path):
     config_file.write_text("agent: {name: 'test_agent'}", encoding="utf-8")
 
     generator = AntigravityAgentGenerator(prompt_base_dir=tmp_path)
-    agent = generator.create_agent(str(config_file))
+    agent = cast(AntigravityAgent, generator.create_agent(str(config_file)))
 
     # TextPart
-    inputs = [TextPart(text="hello")]
-    prepared = agent._prepare_inputs(inputs)
+    inputs_text: list[AgentInputPart] = [TextPart(text="hello")]
+    prepared = agent._prepare_inputs(inputs_text)
     assert prepared == ["hello"]
 
     # ImagePart from path
     img_path = tmp_path / "test.png"
     img_path.write_bytes(b"image data")
-    inputs = [ImagePart.from_file(str(img_path))]
-    prepared = agent._prepare_inputs(inputs)
+    inputs_img_path: list[AgentInputPart] = [ImagePart.from_file(str(img_path))]
+    prepared = agent._prepare_inputs(inputs_img_path)
     assert len(prepared) == 1
     assert prepared[0].mime_type == "image/png"
     assert prepared[0].data == b"image data"
 
     # ImagePart from bytes
-    inputs = [ImagePart.from_bytes(b"data bytes", mime_type="image/jpeg")]
-    prepared = agent._prepare_inputs(inputs)
+    inputs_img_bytes: list[AgentInputPart] = [
+        ImagePart.from_bytes(b"data bytes", mime_type="image/jpeg")
+    ]
+    prepared = agent._prepare_inputs(inputs_img_bytes)
     assert len(prepared) == 1
     assert prepared[0].mime_type == "image/jpeg"
     assert prepared[0].data == b"data bytes"

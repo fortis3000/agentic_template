@@ -100,7 +100,8 @@ class BaseAgent(ABC):
         Yields:
             Chunks of the text response as they are generated.
         """
-        pass
+        if False:
+            yield ""
 
 
 class BaseAgentGenerator(ABC):
