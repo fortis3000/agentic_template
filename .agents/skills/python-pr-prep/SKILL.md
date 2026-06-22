@@ -23,14 +23,14 @@ description: Prepare current Python work for PR using latest best practices and 
      * Temporary "hack" fixes or dangling `# TODO` comments that should be resolved in this PR.
    * **Documentation Check:** Verify that extensive (but non-redundant) documentation has been added or updated for any new functionality introduced in this PR (e.g., in `README.md` or dedicated markdown files).
 
-3. **Verify with Bundled Validation Script:**
-   * Run the pre-commit script to format code, check lints/security/markdown rules, and verify tests pass on changed files:
+3. **Verify with Pre-commit Hooks:**
+   * Run the pre-commit hooks manually to format code, check lints/security/markdown rules, and verify tests pass:
      ```bash
      make precommit
      ```
      or:
      ```bash
-     bash precommit.sh
+     uv run pre-commit run --all-files
      ```
      *Note: If Docker is used (as recommended in python-coder), run these validation checks within the Docker sandbox as specified in the python-coder skill.*
 
@@ -55,4 +55,3 @@ description: Prepare current Python work for PR using latest best practices and 
        git worktree remove .worktrees/<branch-name>
        git branch -d <branch-name>
        ```
-

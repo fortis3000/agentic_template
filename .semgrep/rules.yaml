@@ -1,0 +1,7 @@
+rules:
+  - id: detect-hardcoded-api-key-prefix
+    pattern-regex: 'AIzaSy[A-Za-z0-9_\-]*'
+    message: "Hardcoded GCP API Key prefix detected. Do not commit API keys or secrets to the repository. Use environment variables or a secrets manager instead."
+    languages:
+      - python
+    severity: ERROR

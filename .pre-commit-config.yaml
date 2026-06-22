@@ -1,0 +1,40 @@
+fail_fast: true
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: Ruff Format
+        entry: uv run ruff format
+        language: system
+        types: [python]
+      - id: ruff-check
+        name: Ruff Check
+        entry: uv run ruff check
+        language: system
+        types: [python]
+      - id: ty-check
+        name: Ty Type Check
+        entry: uv run ty check
+        language: system
+        types: [python]
+      - id: bandit
+        name: Bandit Security Check
+        entry: uv run bandit -c pyproject.toml
+        language: system
+        types: [python]
+      - id: pymarkdown
+        name: Pymarkdown Scan
+        entry: uv run pymarkdown --enable-extensions front-matter --disable-rules MD007,MD012,MD013,MD022,MD024,MD029,MD031,MD032,MD033,MD046 scan
+        language: system
+        types: [markdown]
+      - id: pytest
+        name: Pytest Suite
+        entry: uv run python -m pytest -v
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: semgrep
+        name: Semgrep Scan
+        entry: uv run semgrep scan --config .semgrep/rules.yaml --error
+        language: system
+        types: [python]

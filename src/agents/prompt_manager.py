@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 from string import Template
+from typing import Any
 
 
 class PromptManager:
@@ -19,7 +20,7 @@ class PromptManager:
     def load_prompt(
         self,
         template_source: str,
-        variables: dict[str, any] | None = None,
+        variables: dict[str, Any] | None = None,
         format_style: str | None = None,
     ) -> str:
         """Load and format a prompt from a string, a file path, or a file under base_dir.
@@ -42,7 +43,7 @@ class PromptManager:
         return self.render_prompt(content, variables, style)
 
     def render_prompt(
-        self, template_content: str, variables: dict[str, any], style: str = "f-string"
+        self, template_content: str, variables: dict[str, Any], style: str = "f-string"
     ) -> str:
         """Render a template string with the provided variables.
 

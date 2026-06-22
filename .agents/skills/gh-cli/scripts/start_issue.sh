@@ -78,4 +78,3 @@ echo "To start working, run:"
 echo "  cd .worktrees/$branch_name"
 echo "  uv sync --extra all"
 echo "Ready to start implementing issue #$issue_number!"
-
