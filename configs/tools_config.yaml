@@ -1,0 +1,11 @@
+tools:
+  read_google_sheet:
+    type: "google_sheet_read"
+    config:
+      spreadsheet_id: "YOUR_SPREADSHEET_ID_HERE"
+      credentials_path: null
+  write_google_sheet:
+    type: "google_sheet_write"
+    config:
+      spreadsheet_id: "YOUR_SPREADSHEET_ID_HERE"
+      credentials_path: null
