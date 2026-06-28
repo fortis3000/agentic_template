@@ -48,8 +48,10 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   docker build -f docker/Dockerfile -t agentic-template:latest .
 
   echo "Running sandboxed validations inside Docker container..."
-  docker run --rm -v "$(pwd)":/app agentic-template:latest bash -c "
+  docker run --rm -v "$(pwd)":/app -v /app/.venv agentic-template:latest bash -c "
     set -e
+    echo '=== Syncing all dependencies (including dev) inside container ==='
+    uv sync --locked --extra all
     echo '=== Ruff format check ==='
     uv run ruff format --check src/ tests/
     echo '=== Ruff lint check ==='
@@ -62,8 +64,12 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
     uv run python -m pytest -v
   "
 else
-  echo "WARNING: Docker is not running or not installed. Running pre-commit run instead..."
-  if command -v uv >/dev/null 2>&1; then
+  echo "WARNING: Docker is not running or not installed. Running local validation fallback..."
+  if [ -f "precommit.sh" ]; then
+    bash precommit.sh
+  elif [ -f ".agents/skills/python-pr-prep/scripts/precommit.sh" ]; then
+    bash .agents/skills/python-pr-prep/scripts/precommit.sh
+  elif command -v uv >/dev/null 2>&1; then
     uv run pre-commit run
   else
     pre-commit run

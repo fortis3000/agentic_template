@@ -96,6 +96,40 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
+## Observability with Arize Phoenix
+
+This project provides integrated OpenTelemetry and OpenInference instrumentation to trace agent calls and tool execution automatically.
+
+### Running with Docker Compose (Recommended)
+You can spawn the Arize Phoenix service and run the agent application in Docker:
+
+1. **Start the services**:
+   ```bash
+   make docker-up
+   ```
+   This builds the agent image and launches both the `phoenix` and `agent-app` containers.
+
+2. **Access the Phoenix UI**:
+   Open your browser and navigate to: [http://localhost:6060](http://localhost:6060)
+
+3. **OTLP Endpoints**:
+   - gRPC endpoint: `http://localhost:4317`
+   - HTTP/protobuf endpoint: `http://localhost:6006/v1/traces`
+
+Any agent execution inside the `agent-app` container (or run locally on the host pointing to the collector endpoint) will emit traces that appear in the Phoenix dashboard.
+
+### Programmatic Setup (Local Python)
+If you prefer not to use Docker, you can launch the service and run a demo agent session programmatically:
+
+```bash
+uv run python src/evals/phoenix_service.py
+```
+This script will:
+- Spawn a local Arize Phoenix UI and collector server.
+- Automatically configure the global OpenTelemetry tracer.
+- Execute a demo session (running an agent and a custom weather tool) to generate sample traces.
+- Keep the server running so you can inspect how the agent works directly in the UI.
+
 --------
 
 ## Goals

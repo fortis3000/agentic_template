@@ -6,13 +6,16 @@ services:
     image: agentic-template:latest
     volumes:
       - .:/app
+      - /app/.venv
     environment:
       - PHOENIX_CLIENT_HEADERS=api_key=${PHOENIX_API_KEY:-}
-      - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006
+      - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:4317
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
     env_file:
       - .env
     depends_on:
-      - phoenix
+      phoenix:
+        condition: service_healthy
     stdin_open: true
     tty: true
 
@@ -20,4 +23,11 @@ services:
     image: arizephoenix/phoenix:latest
     ports:
       - "6060:6060" # Phoenix UI
-      - "6006:6006" # OTLP gRPC endpoint
+      - "6006:6006" # OTLP HTTP endpoint
+      - "4317:4317" # OTLP gRPC endpoint
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:6060/')\" || exit 1"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+      start_period: 5s
