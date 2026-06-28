@@ -84,6 +84,7 @@ def test_invalid_commit_messages(message: str, expected_error: str):
         "Merge branch 'main' of github.com:org/repo",
         "Merge pull request #123 from branch-name",
         "Merge remote-tracking branch 'origin/main'",
+        "Merge a5c7a8f2c9ea086d1d086d576755aa0cbbe6d195 into 366d11c85e23613e011ef71cbe7671e80b532bf1",
         'Revert "feat: add something"',
         "squash! feat: add something",
         "fixup! fix: some bug",
