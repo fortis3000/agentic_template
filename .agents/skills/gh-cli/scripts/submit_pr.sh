@@ -50,8 +50,8 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   echo "Running sandboxed validations inside Docker container..."
   docker run --rm -v "$(pwd)":/app -v /app/.venv agentic-template:latest bash -c "
     set -e
-    echo '=== Syncing all dependencies (including dev) inside container ==='
-    uv sync --locked --extra all
+    echo '=== Syncing lint and test dependencies inside container ==='
+    uv sync --locked --extra lint,test
     echo '=== Ruff format check ==='
     uv run ruff format --check src/ tests/
     echo '=== Ruff lint check ==='

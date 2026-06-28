@@ -22,11 +22,10 @@ services:
   phoenix:
     image: arizephoenix/phoenix:latest
     ports:
-      - "6060:6060" # Phoenix UI
-      - "6006:6006" # OTLP HTTP endpoint
+      - "6060:6006" # Phoenix UI / OTLP HTTP endpoint
       - "4317:4317" # OTLP gRPC endpoint
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:6060/')\" || exit 1"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:6006/')"]
       interval: 5s
       timeout: 2s
       retries: 5
