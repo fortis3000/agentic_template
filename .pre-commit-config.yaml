@@ -48,4 +48,10 @@ repos:
         entry: uv run semgrep scan --config .semgrep/rules.yaml --error
         language: system
         types: [python]
+      - id: check-commit-message
+        name: Check Commit Message
+        entry: uv run python .agents/scripts/validate_commit_message.py
+        language: system
+        stages: [commit-msg]
+
 
