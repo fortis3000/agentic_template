@@ -66,6 +66,35 @@ jobs:
       - name: Checking formatting with ruff
         run: ruff format .
 
+  pr_description_lint:
+    name: Lint PR Description
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+
+      - name: Installing Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: yezz123/setup-uv@v4
+        with:
+          uv-venv: ".venv"
+
+      - name: Cache uv virtualenv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-uv-${{ env.PYTHON_VERSION }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-${{ env.PYTHON_VERSION }}-
+
+      - name: Validate PR Description
+        run: uv run python src/utils/pr_validator.py
+
   testing:
     runs-on: ubuntu-latest
     steps:

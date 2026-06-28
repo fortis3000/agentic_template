@@ -51,6 +51,17 @@
 
 Use the `/precommit` skill to validate changes before committing.
 
+## Pull Requests & Documentation
+
+- Every pull request MUST follow the template structure defined in `.github/pull_request_template.md`.
+- Both humans and agents must answer the guiding questions in each section and **MUST NOT** delete the questions themselves (keep them in the final PR description as plain text).
+- The `[Answer here]` placeholders must be completely replaced with the actual response details.
+- Agents preparing changes or a walkthrough.md must ensure their final summaries align with these sections and answer the questions explicitly:
+  - **Summary**: Core goal, current vs new behavior, necessity of change.
+  - **Key Changes**: Files modified/added, dependency changes.
+  - **Discussion & Pitfalls**: Architectural tradeoffs, security/performance implications, rejected alternatives.
+  - **Verification**: Tests run, local manual verification steps.
+
 ## Environment & dependency management
 
 - Python: **3.13** (see `pyproject.toml`).
