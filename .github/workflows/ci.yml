@@ -10,6 +10,29 @@ env:
   PYTHON_VERSION: "3.13"
 
 jobs:
+  validate_commits:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Commit Messages
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch origin ${{ github.event.pull_request.base.ref }}
+            COMMITS=$(git log --format="%H" origin/${{ github.event.pull_request.base.ref }}..HEAD)
+          else
+            COMMITS=$(git log --format="%H" -n 1 HEAD)
+          fi
+
+          for commit in $COMMITS; do
+            subject=$(git log --format="%s" -n 1 "$commit")
+            echo "Validating commit: $subject"
+            echo "$subject" | bash .agents/scripts/validate_commit_message.sh
+          done
+
   linting:
     runs-on: ubuntu-latest
     steps:

@@ -41,6 +41,11 @@
 - Formatting/linting is enforced via `ruff` (line length 100, target py313).
 - Follow existing typing patterns; avoid introducing new style/tooling unless required.
 - Don't reformat unrelated code.
+- **Semantic Commits**: Always use semantic commit messages following the Conventional Commits specification.
+  - Format: `<type>(<scope>)?(!)?: <description>` (e.g., `feat(auth): add login button` or `fix!: remove legacy API`).
+  - Allowed types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `build`, `ci`, `perf`, `revert`.
+  - Keep the subject line concise and under 72 characters.
+
 
 ## Validation (run before handoff)
 
