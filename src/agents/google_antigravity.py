@@ -235,7 +235,6 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
                 name=name,
                 command=cfg.get("command", ""),
                 args=cfg.get("args", []),
-                env=cfg.get("env"),
                 enabled_tools=cfg.get("enabled_tools"),
                 disabled_tools=cfg.get("disabled_tools"),
             )

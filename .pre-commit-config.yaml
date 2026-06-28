@@ -27,6 +27,16 @@ repos:
         entry: uv run pymarkdown --enable-extensions front-matter --disable-rules MD007,MD012,MD013,MD022,MD024,MD029,MD031,MD032,MD033,MD046 scan
         language: system
         types: [markdown]
+      - id: sqlfluff-fix
+        name: SQLFluff Fix
+        entry: uv run sqlfluff fix --force
+        language: system
+        types: [sql]
+      - id: sqlfluff-lint
+        name: SQLFluff Lint
+        entry: uv run sqlfluff lint
+        language: system
+        types: [sql]
       - id: pytest
         name: Pytest Suite
         entry: uv run python -m pytest -v
@@ -38,3 +48,4 @@ repos:
         entry: uv run semgrep scan --config .semgrep/rules.yaml --error
         language: system
         types: [python]
+
