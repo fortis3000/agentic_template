@@ -26,6 +26,9 @@ def run_validation_script(message: str) -> subprocess.CompletedProcess:
         "ci: configure github actions pipeline",
         "perf(engine): optimize query response time\n\nMore details in the body.",
         "feat(api)!: drop support for v1 endpoints",
+        "feat: add user authentication (#42)",
+        "fix(login): resolve incorrect password error (#99)",
+        "refactor(git): replace python commit hook with lightweight bash script (#11)",
     ],
 )
 def test_valid_commit_messages(message: str):
