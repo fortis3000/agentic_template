@@ -50,7 +50,7 @@ repos:
         types: [python]
       - id: check-commit-message
         name: Check Commit Message
-        entry: uv run python .agents/scripts/validate_commit_message.py
+        entry: bash .agents/scripts/validate_commit_message.sh
         language: system
         stages: [commit-msg]
 
