@@ -2,11 +2,11 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "run_command",
+        "matcher": "Bash|bash|run_command|execute_command",
         "hooks": [
           {
             "type": "command",
-            "command": "uv run python .agents/scripts/validate_tool_call.py",
+            "command": "uv run .agents/scripts/validate_tool_call.py",
             "timeout": 10
           }
         ]
