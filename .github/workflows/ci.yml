@@ -5,7 +5,7 @@ on:
     branches:
       - master
   pull_request:
-
+    types: [opened, synchronize, reopened, edited]
 env:
   PYTHON_VERSION: "3.13"
 
