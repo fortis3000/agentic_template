@@ -3,6 +3,7 @@ from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from google.antigravity.types import McpStdioServer
 
 from src.agents.base import AgentInputPart, ImagePart, TextPart
 from src.agents.google_antigravity import AntigravityAgent, AntigravityAgentGenerator
@@ -80,14 +81,17 @@ agent:
             tools_registry={"custom_tool": mock_tool},
         ),
     )
+    assert isinstance(agent, AntigravityAgent)
 
     assert agent.config.model == "gemini-3.5-flash"
     assert agent.config.system_instructions == "System instruction for assistant"
     assert len(agent.config.tools) == 1
-    assert agent.config.tools[0] == mock_tool
+    assert getattr(agent.config.tools[0], "__wrapped__", agent.config.tools[0]) == mock_tool
     assert len(agent.config.mcp_servers) == 1
-    assert agent.config.mcp_servers[0].name == "filesystem"
-    assert getattr(agent.config.mcp_servers[0], "command") == "npx"
+    server = agent.config.mcp_servers[0]
+    assert isinstance(server, McpStdioServer)
+    assert server.name == "filesystem"
+    assert server.command == "npx"
     app_dir = agent.config.app_data_dir
     assert app_dir is not None
     assert os.path.isabs(app_dir)

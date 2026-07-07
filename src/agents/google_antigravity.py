@@ -1,3 +1,5 @@
+import functools
+import inspect
 import os
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -13,9 +15,66 @@ from google.antigravity.types import (
     McpStdioServer,
     McpStreamableHttpServer,
 )
+from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
+from opentelemetry import trace
 
 from src.agents.base import AgentInputPart, BaseAgent, BaseAgentGenerator, ImagePart, TextPart
 from src.agents.prompt_manager import PromptManager
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+def trace_tool(tool_func: Callable[..., Any]) -> Callable[..., Any]:
+    """Wraps a tool function with OpenTelemetry tracing using OpenInference conventions."""
+    tool_name = getattr(tool_func, "__name__", "unknown_tool")
+    tool_doc = getattr(tool_func, "__doc__", "") or ""
+    if inspect.iscoroutinefunction(tool_func):
+
+        @functools.wraps(tool_func)
+        async def async_wrapped(*args: Any, **kwargs: Any) -> Any:
+            tracer = trace.get_tracer("antigravity-agent")
+            with tracer.start_as_current_span(
+                name=tool_name,
+                attributes={
+                    SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL.value,
+                    SpanAttributes.TOOL_NAME: tool_name,
+                    SpanAttributes.TOOL_DESCRIPTION: tool_doc,
+                    SpanAttributes.INPUT_VALUE: str({"args": args, "kwargs": kwargs}),
+                },
+            ) as span:
+                try:
+                    res = await tool_func(*args, **kwargs)
+                    span.set_attribute(SpanAttributes.OUTPUT_VALUE, str(res))
+                    return res
+                except Exception as e:
+                    span.set_status(trace.StatusCode.ERROR, str(e))
+                    raise
+
+        return async_wrapped
+    else:
+
+        @functools.wraps(tool_func)
+        def sync_wrapped(*args: Any, **kwargs: Any) -> Any:
+            tracer = trace.get_tracer("antigravity-agent")
+            with tracer.start_as_current_span(
+                name=tool_name,
+                attributes={
+                    SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.TOOL.value,
+                    SpanAttributes.TOOL_NAME: tool_name,
+                    SpanAttributes.TOOL_DESCRIPTION: tool_doc,
+                    SpanAttributes.INPUT_VALUE: str({"args": args, "kwargs": kwargs}),
+                },
+            ) as span:
+                try:
+                    res = tool_func(*args, **kwargs)
+                    span.set_attribute(SpanAttributes.OUTPUT_VALUE, str(res))
+                    return res
+                except Exception as e:
+                    span.set_status(trace.StatusCode.ERROR, str(e))
+                    raise
+
+        return sync_wrapped
 
 
 class AntigravityAgent(BaseAgent):
@@ -51,10 +110,27 @@ class AntigravityAgent(BaseAgent):
         Returns:
             The final text response from the agent.
         """
-        converted_inputs = self._prepare_inputs(inputs)
-        async with G_Agent(config=self.config) as agent:
-            response = await agent.chat(converted_inputs)
-            return await response.text()
+        tracer = trace.get_tracer("antigravity-agent")
+        model_name = str(self.config.model) if self.config.model else ""
+        with tracer.start_as_current_span(
+            name=f"{model_name or 'agent'} call",
+            attributes={
+                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
+                SpanAttributes.AGENT_NAME: model_name or "AntigravityAgent",
+                SpanAttributes.INPUT_VALUE: str(inputs),
+                SpanAttributes.LLM_MODEL_NAME: model_name,
+            },
+        ) as span:
+            try:
+                converted_inputs = self._prepare_inputs(inputs)
+                async with G_Agent(config=self.config) as agent:
+                    response = await agent.chat(converted_inputs)
+                    res_text = await response.text()
+                    span.set_attribute(SpanAttributes.OUTPUT_VALUE, res_text)
+                    return res_text
+            except Exception as e:
+                span.set_status(trace.StatusCode.ERROR, str(e))
+                raise
 
     async def call_stream(
         self, inputs: list[AgentInputPart] | str | dict[str, Any] | None = None
@@ -68,11 +144,29 @@ class AntigravityAgent(BaseAgent):
         Yields:
             Response chunks.
         """
-        converted_inputs = self._prepare_inputs(inputs)
-        async with G_Agent(config=self.config) as agent:
-            response = await agent.chat(converted_inputs)
-            async for token in response:
-                yield token
+        tracer = trace.get_tracer("antigravity-agent")
+        model_name = str(self.config.model) if self.config.model else ""
+        with tracer.start_as_current_span(
+            name=f"{model_name or 'agent'} call_stream",
+            attributes={
+                SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
+                SpanAttributes.AGENT_NAME: model_name or "AntigravityAgent",
+                SpanAttributes.INPUT_VALUE: str(inputs),
+                SpanAttributes.LLM_MODEL_NAME: model_name,
+            },
+        ) as span:
+            try:
+                converted_inputs = self._prepare_inputs(inputs)
+                async with G_Agent(config=self.config) as agent:
+                    response = await agent.chat(converted_inputs)
+                    chunks = []
+                    async for token in response:
+                        chunks.append(token)
+                        yield token
+                    span.set_attribute(SpanAttributes.OUTPUT_VALUE, "".join(chunks))
+            except Exception as e:
+                span.set_status(trace.StatusCode.ERROR, str(e))
+                raise
 
     def _prepare_inputs(
         self, inputs: list[AgentInputPart] | str | dict[str, Any] | None
@@ -175,11 +269,11 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
         tool_names = agent_data.get("tools", [])
         for tool_name in tool_names:
             if tool_name in tools_registry:
-                tools.append(tools_registry[tool_name])
+                tools.append(trace_tool(tools_registry[tool_name]))
             else:
                 # Log warning or add a stub / placeholder warning
-                print(
-                    f"Warning: Tool '{tool_name}' listed in config but not provided in tools_registry."
+                logger.warning(
+                    f"Tool '{tool_name}' listed in config but not provided in tools_registry."
                 )
 
         # 3. Resolve MCP Servers

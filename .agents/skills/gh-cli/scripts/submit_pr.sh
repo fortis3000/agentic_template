@@ -48,25 +48,19 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   docker build -f docker/Dockerfile -t agentic-template:latest .
 
   echo "Running sandboxed validations inside Docker container..."
-  docker run --rm -v "$(pwd)":/app agentic-template:latest bash -c "
+  docker run --rm -v "$(pwd)":/app -v /app/.venv agentic-template:latest bash -c "
     set -e
-    echo '=== Ruff format check ==='
-    uv run ruff format --check src/ tests/
-    echo '=== Ruff lint check ==='
-    uv run ruff check src/ tests/
-    echo '=== ty type check ==='
-    uv run ty check src/ tests/
-    echo '=== Bandit security check ==='
-    uv run bandit -c pyproject.toml -r src/
-    echo '=== Pytest ==='
-    uv run python -m pytest -v
+    echo '=== Syncing lint and test dependencies inside container ==='
+    uv sync --locked --extra lint,test
+    echo '=== Running pre-commit checks ==='
+    uv run pre-commit run --all-files
   "
 else
-  echo "WARNING: Docker is not running or not installed. Running pre-commit run instead..."
+  echo "WARNING: Docker is not running or not installed. Running local validation fallback..."
   if command -v uv >/dev/null 2>&1; then
-    uv run pre-commit run
+    uv run pre-commit run --all-files
   else
-    pre-commit run
+    pre-commit run --all-files
   fi
 fi
 
