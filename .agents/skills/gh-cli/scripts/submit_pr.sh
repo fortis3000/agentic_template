@@ -57,14 +57,10 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   "
 else
   echo "WARNING: Docker is not running or not installed. Running local validation fallback..."
-  if [ -f "precommit.sh" ]; then
-    bash precommit.sh
-  elif [ -f ".agents/skills/python-pr-prep/scripts/precommit.sh" ]; then
-    bash .agents/skills/python-pr-prep/scripts/precommit.sh
-  elif command -v uv >/dev/null 2>&1; then
-    uv run pre-commit run
+  if command -v uv >/dev/null 2>&1; then
+    uv run pre-commit run --all-files
   else
-    pre-commit run
+    pre-commit run --all-files
   fi
 fi
 

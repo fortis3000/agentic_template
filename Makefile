@@ -6,7 +6,7 @@ install_dev_dependencies:
 
 # Local precommit
 precommit:
-	bash precommit.sh
+	uv run pre-commit run --all-files
 
 # Docker: build image from project root
 docker-build:
