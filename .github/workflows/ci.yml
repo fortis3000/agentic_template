@@ -57,14 +57,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-uv-${{ env.PYTHON_VERSION }}-
 
-      - name: Install linting dependencies
-        run: uv sync --extra lint
+      - name: Install dependencies
+        run: uv sync --extra all
 
-      - name: Checking linting with ruff
-        run: ruff check .
-
-      - name: Checking formatting with ruff
-        run: ruff format .
+      - name: Run pre-commit checks
+        run: uv run pre-commit run --all-files
 
   pr_description_lint:
     name: Lint PR Description

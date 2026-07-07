@@ -19,6 +19,46 @@ def get_weather(location: str) -> str:
     return f"The weather in {location} is sunny and 22°C."
 
 
+async def run_live_demo_run(agent: AntigravityAgent, query: str) -> None:
+    """Runs a live agent session with actual API keys to generate traces."""
+    logger.info("Running live agent run...")
+    try:
+        # First, trigger the weather tool directly to make sure a tool span is generated
+        tool_func = agent.config.tools[0]
+        logger.info("Invoking registered tool...")
+        tool_func(location="Paris")
+
+        # Then run agent call
+        response = await agent.call(inputs={"query": query})
+        logger.info(f"Agent Response: {response}")
+    except Exception as e:
+        logger.error(f"Error during live agent run: {e}")
+
+
+async def run_mocked_demo_run(agent: AntigravityAgent, query: str) -> None:
+    """Runs a mocked agent session to generate traces without making API requests."""
+    logger.info("Running with mocked agent and tool calls to generate traces...")
+    # Mock G_Agent context manager and response
+    mock_response = AsyncMock()
+    mock_response.text = AsyncMock(
+        return_value="According to the get_weather tool, the weather in Paris is sunny and 22°C."
+    )
+
+    with patch("src.agents.google_antigravity.G_Agent") as mock_g_agent:
+        mock_instance = AsyncMock()
+        mock_g_agent.return_value.__aenter__.return_value = mock_instance
+        mock_instance.chat.return_value = mock_response
+
+        # Call the wrapped tool to generate a tool span
+        logger.info("Simulating tool call...")
+        wrapped_tool = agent.config.tools[0]
+        wrapped_tool(location="Paris")
+
+        # Call the agent
+        response = await agent.call(inputs={"query": query})
+        logger.info(f"Mocked Agent Response: {response}")
+
+
 async def run_demo_agent_run():
     """Runs a demo agent run, instrumented by OpenTelemetry, to send traces to Phoenix."""
     logger.info("Spawning Agentic Session")
@@ -47,41 +87,9 @@ async def run_demo_agent_run():
 
     has_api_key = os.getenv("GEMINI_API_KEY") is not None
     if has_api_key:
-        logger.info("Running live agent run...")
-        try:
-            # First, trigger the weather tool directly to make sure a tool span is generated
-            tool_func = agent.config.tools[0]
-            logger.info("Invoking registered tool...")
-            tool_func(location="Paris")
-
-            # Then run agent call
-            response = await agent.call(inputs={"query": query})
-            logger.info(f"Agent Response: {response}")
-        except Exception as e:
-            logger.error(f"Error during live agent run: {e}")
+        await run_live_demo_run(agent, query)
     else:
-        logger.warning(
-            "GEMINI_API_KEY not found. Running with mocked agent and tool calls to generate traces..."
-        )
-        # Mock G_Agent context manager and response
-        mock_response = AsyncMock()
-        mock_response.text = AsyncMock(
-            return_value="According to the get_weather tool, the weather in Paris is sunny and 22°C."
-        )
-
-        with patch("src.agents.google_antigravity.G_Agent") as mock_g_agent:
-            mock_instance = AsyncMock()
-            mock_g_agent.return_value.__aenter__.return_value = mock_instance
-            mock_instance.chat.return_value = mock_response
-
-            # Call the wrapped tool to generate a tool span
-            logger.info("Simulating tool call...")
-            wrapped_tool = agent.config.tools[0]
-            wrapped_tool(location="Paris")
-
-            # Call the agent
-            response = await agent.call(inputs={"query": query})
-            logger.info(f"Mocked Agent Response: {response}")
+        await run_mocked_demo_run(agent, query)
 
     logger.info("Spans successfully generated and sent to Arize Phoenix collector!")
 

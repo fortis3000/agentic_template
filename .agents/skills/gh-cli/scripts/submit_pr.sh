@@ -52,16 +52,8 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
     set -e
     echo '=== Syncing lint and test dependencies inside container ==='
     uv sync --locked --extra lint,test
-    echo '=== Ruff format check ==='
-    uv run ruff format --check src/ tests/
-    echo '=== Ruff lint check ==='
-    uv run ruff check src/ tests/
-    echo '=== ty type check ==='
-    uv run ty check src/ tests/
-    echo '=== Bandit security check ==='
-    uv run bandit -c pyproject.toml -r src/
-    echo '=== Pytest ==='
-    uv run python -m pytest -v
+    echo '=== Running pre-commit checks ==='
+    uv run pre-commit run --all-files
   "
 else
   echo "WARNING: Docker is not running or not installed. Running local validation fallback..."
