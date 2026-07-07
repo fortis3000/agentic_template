@@ -9,6 +9,7 @@ from src.agents.base import (
 )
 from src.agents.google_antigravity import AntigravityAgent, AntigravityAgentGenerator
 from src.agents.prompt_manager import PromptManager
+from src.agents.pydantic_ai import PydanticAIAgent, PydanticAIAgentGenerator
 
 __all__ = [
     "AgentInputPart",
@@ -20,5 +21,7 @@ __all__ = [
     "ToolConfig",
     "AntigravityAgent",
     "AntigravityAgentGenerator",
+    "PydanticAIAgent",
+    "PydanticAIAgentGenerator",
     "PromptManager",
 ]
