@@ -1,3 +1,4 @@
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -6,8 +7,10 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
+from pydantic_ai.models.test import TestModel
 
 from src.agents.google_antigravity import AntigravityAgent, AntigravityAgentGenerator
+from src.agents.pydantic_ai import PydanticAIAgent, PydanticAIAgentGenerator
 
 
 @pytest.fixture(scope="module")
@@ -174,6 +177,161 @@ agent:
         # 2. Test failing tool execution
         exporter.clear()
         wrapped_tool = agent.config.tools[0]
+        with pytest.raises(ValueError, match="tool failure"):
+            wrapped_tool(x=42)
+
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        tool_span = spans[0]
+        assert tool_span.status.status_code == StatusCode.ERROR
+        assert "tool failure" in tool_span.status.description
+        assert len(tool_span.events) == 1
+        assert tool_span.events[0].name == "exception"
+
+
+@pytest.mark.asyncio
+async def test_pydantic_ai_agent_and_tool_tracing(tmp_path, otel_setup):
+    """Tests that PydanticAIAgent calls and tool calls correctly generate OTel spans with OpenInference attributes."""
+    provider, exporter = otel_setup
+
+    config_file = tmp_path / "pydantic_agent_config.yaml"
+    config_file.write_text(
+        """
+agent:
+  name: "test_pydantic_agent"
+  model: "gemini-2.0-flash"
+  provider: "google"
+  system_prompt: "System instruction"
+  user_prompt: "User query: {query}"
+  tools:
+    - "custom_tool"
+""",
+        encoding="utf-8",
+    )
+
+    def custom_tool(x: int) -> str:
+        """My test tool description."""
+        return f"result-{x}"
+
+    generator = PydanticAIAgentGenerator(prompt_base_dir=tmp_path)
+    agent = generator.create_agent(
+        str(config_file),
+        tools_registry={"custom_tool": custom_tool},
+    )
+
+    assert isinstance(agent, PydanticAIAgent)
+
+    test_model = TestModel(custom_output_text="mocked agent response")
+
+    with (
+        agent.agent.override(model=test_model),
+        patch("src.agents.pydantic_ai.trace.get_tracer") as mock_get_tracer,
+    ):
+        mock_get_tracer.return_value = provider.get_tracer("pydantic-ai-agent")
+
+        exporter.clear()
+
+        # 1. Run the agent call
+        response_text = await agent.call(inputs={"query": "hello"})
+        assert response_text == "mocked agent response"
+
+        # Retrieve the spans
+        spans = exporter.get_finished_spans()
+        assert len(spans) >= 1
+        agent_spans = [s for s in spans if s.name == "gemini-2.0-flash call"]
+        assert len(agent_spans) == 1
+        agent_span = agent_spans[0]
+
+        # Verify Agent Span attributes
+        assert agent_span.name == "gemini-2.0-flash call"
+        assert (
+            agent_span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+            == OpenInferenceSpanKindValues.AGENT.value
+        )
+        assert agent_span.attributes.get(SpanAttributes.AGENT_NAME) == "gemini-2.0-flash"
+        assert "hello" in agent_span.attributes.get(SpanAttributes.INPUT_VALUE)
+        assert agent_span.attributes.get(SpanAttributes.OUTPUT_VALUE) == "mocked agent response"
+
+        # 2. Run the tool function directly to check its tracing wrapper
+        exporter.clear()
+        wrapped_tool: Any = agent.agent._function_toolset.tools["custom_tool"].function
+        tool_result = wrapped_tool(x=42)
+        assert tool_result == "result-42"
+
+        spans = exporter.get_finished_spans()
+        assert len(spans) == 1
+        tool_span = spans[0]
+
+        # Verify Tool Span attributes
+        assert tool_span.name == "custom_tool"
+        assert (
+            tool_span.attributes.get(SpanAttributes.OPENINFERENCE_SPAN_KIND)
+            == OpenInferenceSpanKindValues.TOOL.value
+        )
+        assert tool_span.attributes.get(SpanAttributes.TOOL_NAME) == "custom_tool"
+        assert "My test tool description" in tool_span.attributes.get(
+            SpanAttributes.TOOL_DESCRIPTION
+        )
+        assert "42" in tool_span.attributes.get(SpanAttributes.INPUT_VALUE)
+        assert tool_span.attributes.get(SpanAttributes.OUTPUT_VALUE) == "result-42"
+
+
+@pytest.mark.asyncio
+async def test_pydantic_ai_agent_and_tool_tracing_exceptions(tmp_path, otel_setup):
+    """Tests that PydanticAIAgent and tool calls correctly record exceptions and status on spans."""
+    provider, exporter = otel_setup
+
+    config_file = tmp_path / "pydantic_agent_config_err.yaml"
+    config_file.write_text(
+        """
+agent:
+  name: "test_pydantic_agent_err"
+  model: "gemini-2.0-flash"
+  provider: "google"
+  system_prompt: "System instruction"
+  user_prompt: "User query: {query}"
+  tools:
+    - "failing_tool"
+""",
+        encoding="utf-8",
+    )
+
+    def failing_tool(x: int) -> str:
+        raise ValueError("tool failure")
+
+    generator = PydanticAIAgentGenerator(prompt_base_dir=tmp_path)
+    agent = generator.create_agent(
+        str(config_file),
+        tools_registry={"failing_tool": failing_tool},
+    )
+
+    assert isinstance(agent, PydanticAIAgent)
+
+    test_model = TestModel(custom_output_text="mocked agent response")
+
+    with (
+        agent.agent.override(model=test_model),
+        patch("src.agents.pydantic_ai.trace.get_tracer") as mock_get_tracer,
+    ):
+        mock_get_tracer.return_value = provider.get_tracer("pydantic-ai-agent")
+
+        # 1. Test failing agent call
+        with patch.object(agent.agent, "run", side_effect=RuntimeError("agent run failure")):
+            exporter.clear()
+            with pytest.raises(RuntimeError, match="agent run failure"):
+                await agent.call(inputs={"query": "hello"})
+
+            spans = exporter.get_finished_spans()
+            assert len(spans) == 1
+            agent_span = spans[0]
+            assert agent_span.status.status_code == StatusCode.ERROR
+            assert "agent run failure" in agent_span.status.description
+            assert len(agent_span.events) == 1
+            assert agent_span.events[0].name == "exception"
+
+        # 2. Test failing tool execution
+        exporter.clear()
+        wrapped_tool: Any = agent.agent._function_toolset.tools["failing_tool"].function
         with pytest.raises(ValueError, match="tool failure"):
             wrapped_tool(x=42)
 
