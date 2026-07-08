@@ -6,8 +6,10 @@ from typing import Any, Callable
 import yaml
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from opentelemetry import trace
+from pydantic import BaseModel, Field
 from pydantic_ai import Agent as PA_Agent
 from pydantic_ai import BinaryContent
+from pydantic_ai.models import Model
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.models.openai import OpenAIChatModel
@@ -18,6 +20,107 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from src.agents.base import AgentInputPart, BaseAgent, BaseAgentGenerator, ImagePart, TextPart
 from src.agents.google_antigravity import trace_tool
 from src.agents.prompt_manager import PromptManager
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+class AgentConfigSchema(BaseModel):
+    name: str = "default_agent"
+    model: str = "gemini-3.5-flash"
+    provider: str | None = None
+    base_url: str | None = None
+    system_prompt_path: str | None = None
+    system_prompt: str | None = None
+    system_prompt_format: str = "f-string"
+    user_prompt_path: str | None = None
+    user_prompt: str | None = None
+    user_prompt_format: str = "f-string"
+    app_data_dir: str | None = None
+    streaming: bool = False
+    tools: list[str] = Field(default_factory=list)
+    mcp_servers: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentYamlConfig(BaseModel):
+    agent: AgentConfigSchema
+
+
+class ModelFactory:
+    """Factory to resolve Pydantic AI Model instances based on the provider."""
+
+    @staticmethod
+    def detect_provider(model_name: str, base_url: str | None = None) -> str:
+        """Detect model provider based on model name and base URL fallback."""
+        model_name_lower = model_name.lower().strip()
+        if base_url or model_name_lower.startswith("ollama:"):
+            return "ollama"
+        elif (
+            model_name_lower.startswith("gemini-")
+            or model_name_lower.startswith("google:")
+            or model_name_lower.startswith("gemini:")
+        ):
+            return "google"
+        elif model_name_lower.startswith("gpt-") or model_name_lower.startswith("openai:"):
+            return "openai"
+        elif model_name_lower.startswith("claude-") or model_name_lower.startswith("anthropic:"):
+            return "anthropic"
+        else:
+            return "google"
+
+    @staticmethod
+    def create_model(
+        provider: str | None,
+        model_name: str,
+        base_url: str | None = None,
+        api_key: str | None = None,
+    ) -> Model[Any]:
+        """Create and configure a Pydantic AI Model instance."""
+        if not provider:
+            provider = ModelFactory.detect_provider(model_name, base_url)
+
+        provider = provider.lower().strip()
+
+        # Clean prefix from model name if any
+        clean_model_name = model_name
+        for prefix in ("google:", "gemini:", "openai:", "anthropic:", "ollama:"):
+            if clean_model_name.lower().startswith(prefix):
+                clean_model_name = clean_model_name[len(prefix) :]
+                break
+
+        if provider == "google":
+            key = (
+                api_key
+                or os.getenv("GEMINI_API_KEY")
+                or os.getenv("GOOGLE_API_KEY")
+                or "placeholder_key"
+            )
+            google_provider = GoogleProvider(api_key=key)
+            return GoogleModel(model_name=clean_model_name, provider=google_provider)
+
+        elif provider == "openai":
+            key = api_key or os.getenv("OPENAI_API_KEY") or "placeholder_key"
+            if base_url:
+                openai_provider = OpenAIProvider(api_key=key, base_url=base_url)
+            else:
+                openai_provider = OpenAIProvider(api_key=key)
+            return OpenAIChatModel(model_name=clean_model_name, provider=openai_provider)
+
+        elif provider == "ollama":
+            url = base_url or os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434/v1"
+            openai_provider = OpenAIProvider(api_key=api_key or "ollama", base_url=url)
+            return OpenAIChatModel(model_name=clean_model_name, provider=openai_provider)
+
+        elif provider == "anthropic":
+            key = api_key or os.getenv("ANTHROPIC_API_KEY") or "placeholder_key"
+            if base_url:
+                anthropic_provider = AnthropicProvider(api_key=key, base_url=base_url)
+            else:
+                anthropic_provider = AnthropicProvider(api_key=key)
+            return AnthropicModel(model_name=clean_model_name, provider=anthropic_provider)
+
+        else:
+            raise ValueError(f"Unsupported model provider: '{provider}'")
 
 
 class PydanticAIAgent(BaseAgent):
@@ -196,41 +299,58 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
         with open(config_path, encoding="utf-8") as f:
             config_data = yaml.safe_load(f)
 
-        agent_data = config_data.get("agent", {})
+        # 1. Parse and validate using Pydantic validator
+        validated_config = AgentYamlConfig.model_validate(config_data)
+        agent_data_dict = validated_config.agent.model_dump()
+
+        # 2. Handle dynamic overrides via kwargs
+        for k, v in kwargs.items():
+            if v is not None:
+                agent_data_dict[k] = v
+
+        # Re-validate target config with overrides
+        agent_data = AgentConfigSchema.model_validate(agent_data_dict)
+
         prompt_manager = PromptManager(base_dir=self.prompt_base_dir)
 
-        # 1. Resolve System instructions
+        # 3. Resolve System instructions
         system_prompt = ""
-        system_prompt_source = agent_data.get("system_prompt_path") or agent_data.get(
-            "system_prompt"
-        )
+        system_prompt_source = agent_data.system_prompt_path or agent_data.system_prompt
         if system_prompt_source:
-            system_prompt_format = agent_data.get("system_prompt_format", "f-string")
             system_prompt = prompt_manager.load_prompt(
                 system_prompt_source,
                 variables=system_variables,
-                format_style=system_prompt_format,
+                format_style=agent_data.system_prompt_format,
             )
 
-        # 2. Resolve Tools
+        # 4. Resolve Tools
         tools = []
         tools_registry = tools_registry or {}
-        tool_names = agent_data.get("tools", [])
-        for tool_name in tool_names:
+        for tool_name in agent_data.tools:
             if tool_name in tools_registry:
                 tools.append(trace_tool(tools_registry[tool_name]))
             else:
-                print(
-                    f"Warning: Tool '{tool_name}' listed in config but not provided in tools_registry."
+                logger.warning(
+                    f"Tool '{tool_name}' listed in config but not provided in tools_registry."
                 )
 
-        # 3. Resolve Model configuration
-        model_name = kwargs.get("model") or agent_data.get("model") or "gemini-3.5-flash"
-        base_url = kwargs.get("base_url") or agent_data.get("base_url")
-        api_key = kwargs.get("api_key") or agent_data.get("api_key")
-
-        # Resolve Pydantic AI model instance
-        model_instance = self._resolve_model(model_name, base_url, api_key)
+        # 5. Resolve Model configuration via factory
+        model_instance = ModelFactory.create_model(
+            provider=agent_data.provider,
+            model_name=agent_data.model,
+            base_url=agent_data.base_url,
+            api_key=agent_data.mcp_servers.get(
+                "api_key"
+            ),  # fallback api_key override from kwargs handled below
+        )
+        if kwargs.get("api_key"):
+            # Recreate model with explicit api_key override if passed in kwargs
+            model_instance = ModelFactory.create_model(
+                provider=agent_data.provider,
+                model_name=agent_data.model,
+                base_url=agent_data.base_url,
+                api_key=kwargs["api_key"],
+            )
 
         # Build Pydantic AI Agent
         pa_agent = PA_Agent(
@@ -239,10 +359,8 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
             tools=tools,
         )
 
-        default_user_prompt_source = agent_data.get("user_prompt_path") or agent_data.get(
-            "user_prompt"
-        )
-        default_user_prompt_format = agent_data.get("user_prompt_format", "f-string")
+        default_user_prompt_source = agent_data.user_prompt_path or agent_data.user_prompt
+        default_user_prompt_format = agent_data.user_prompt_format or "f-string"
 
         return PydanticAIAgent(
             agent=pa_agent,
@@ -250,61 +368,3 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
             default_user_prompt_source=default_user_prompt_source,
             default_user_prompt_format=default_user_prompt_format,
         )
-
-    def _resolve_model(
-        self, model_name: str, base_url: str | None = None, api_key: str | None = None
-    ) -> Any:
-        """Resolve and instantiate a Pydantic AI model."""
-        # 1. Handle Ollama or custom OpenAI endpoint
-        if base_url or model_name.startswith("ollama:"):
-            name = model_name
-            if model_name.startswith("ollama:"):
-                name = model_name.split(":", 1)[1]
-            provider = OpenAIProvider(
-                api_key=api_key or "ollama", base_url=base_url or "http://localhost:11434/v1"
-            )
-            return OpenAIChatModel(model_name=name, provider=provider)
-
-        # 2. Handle Google/Gemini models using GoogleModel
-        clean_model_name = model_name
-        if model_name.startswith("gemini:"):
-            clean_model_name = model_name.split(":", 1)[1]
-        elif model_name.startswith("google:"):
-            clean_model_name = model_name.split(":", 1)[1]
-
-        if (
-            clean_model_name.startswith("gemini-")
-            or model_name.startswith("google:")
-            or model_name.startswith("gemini:")
-        ):
-            key = (
-                api_key
-                or os.getenv("GEMINI_API_KEY")
-                or os.getenv("GOOGLE_API_KEY")
-                or "placeholder_key"
-            )
-            provider = GoogleProvider(api_key=key)
-            return GoogleModel(model_name=clean_model_name, provider=provider)
-
-        # 3. Handle OpenAI models
-        clean_model_name = model_name
-        if model_name.startswith("openai:"):
-            clean_model_name = model_name.split(":", 1)[1]
-
-        if clean_model_name.startswith("gpt-") or model_name.startswith("openai:"):
-            key = api_key or os.getenv("OPENAI_API_KEY") or "placeholder_key"
-            provider = OpenAIProvider(api_key=key)
-            return OpenAIChatModel(model_name=clean_model_name, provider=provider)
-
-        # 4. Handle Anthropic models
-        clean_model_name = model_name
-        if model_name.startswith("anthropic:"):
-            clean_model_name = model_name.split(":", 1)[1]
-
-        if clean_model_name.startswith("claude-") or model_name.startswith("anthropic:"):
-            key = api_key or os.getenv("ANTHROPIC_API_KEY") or "placeholder_key"
-            provider = AnthropicProvider(api_key=key)
-            return AnthropicModel(model_name=clean_model_name, provider=provider)
-
-        # Fallback to string name for automatic resolution
-        return model_name

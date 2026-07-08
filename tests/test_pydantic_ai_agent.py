@@ -150,3 +150,56 @@ def test_agent_inputs_mapping(tmp_path):
     assert isinstance(prepared[0], BinaryContent)
     assert prepared[0].media_type == "image/jpeg"
     assert prepared[0].data == b"data bytes"
+
+
+def test_agent_config_model_factory(tmp_path):
+    """Test configuration based model selection and provider factory validation."""
+    # 1. Test google provider configuration
+    config_google = tmp_path / "config_google.yaml"
+    config_google.write_text(
+        """
+agent:
+  name: "google_agent"
+  model: "gemini-1.5-flash"
+  provider: "google"
+""",
+        encoding="utf-8",
+    )
+    generator = PydanticAIAgentGenerator(prompt_base_dir=tmp_path)
+    agent = cast(PydanticAIAgent, generator.create_agent(str(config_google)))
+    assert agent.agent.model.__class__.__name__ == "GoogleModel"
+    assert hasattr(agent.agent.model, "model_name")
+    assert getattr(agent.agent.model, "model_name") == "gemini-1.5-flash"
+
+    # 2. Test openai provider configuration
+    config_openai = tmp_path / "config_openai.yaml"
+    config_openai.write_text(
+        """
+agent:
+  name: "openai_agent"
+  model: "gpt-4o"
+  provider: "openai"
+""",
+        encoding="utf-8",
+    )
+    agent = cast(PydanticAIAgent, generator.create_agent(str(config_openai)))
+    assert agent.agent.model.__class__.__name__ == "OpenAIChatModel"
+    assert hasattr(agent.agent.model, "model_name")
+    assert getattr(agent.agent.model, "model_name") == "gpt-4o"
+
+    # 3. Test ollama provider configuration
+    config_ollama = tmp_path / "config_ollama.yaml"
+    config_ollama.write_text(
+        """
+agent:
+  name: "ollama_agent"
+  model: "llama3"
+  provider: "ollama"
+  base_url: "http://localhost:11434/v1"
+""",
+        encoding="utf-8",
+    )
+    agent = cast(PydanticAIAgent, generator.create_agent(str(config_ollama)))
+    assert agent.agent.model.__class__.__name__ == "OpenAIChatModel"
+    assert hasattr(agent.agent.model, "model_name")
+    assert getattr(agent.agent.model, "model_name") == "llama3"
