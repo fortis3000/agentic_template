@@ -46,7 +46,6 @@
   - Allowed types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `build`, `ci`, `perf`, `revert`.
   - Keep the subject line concise and under 72 characters.
 
-
 ## Validation (run before handoff)
 
 Use the `/precommit` skill to validate changes before committing.
@@ -75,3 +74,8 @@ Use the `/precommit` skill to validate changes before committing.
 - Never commit secrets. Treat `.env` as sensitive.
 - Never use secrets in exposed forms. If so, notify user that secrets were used openly and suggest to remove them and use tokens instead.
 - When you must use a secret, ask user to provide a token instead.
+- Before usng `gh` commands, run the following command to initializa correct GitHub token:
+
+```bash
+export GITHUB_TOKEN=$(grep '^GITHUB_TOKEN=' .env | cut -d= -f2- | xargs)
+```
