@@ -5,95 +5,174 @@ description: Software development workflow for Python agents/tools utilizing Git
 
 # Python Coder Workflow Guide
 
-**Objective:** Standardize the development process for Python agents, tools, and scripts using Git worktrees for workspace isolation, Docker containers for secure sandboxed execution, and SSDLC principles for high code quality and security.
+**Objective:** Standardize the development process for Python agents, tools, and scripts using Git worktrees for workspace isolation, Docker containers for secure sandboxed execution, and SSDLC principles for high code quality, typing compliance, and security checks.
 
-## Core Workflow Steps
+---
+
+## Step-by-Step Developer Lifecycle
 
 ### 1. Worktree Isolation
-Always isolate your development environments using Git worktrees. This prevents uncommitted files or diverging local configurations on the `master` branch from contaminating your work, and allows switching between different tasks instantly.
 
-* **Create Worktree:** Run the following command from the repository root:
+To isolate your development environment and avoid contaminating the `master` branch:
+
+* **Automated Script (Recommended):**
+  From the repository root, run the start script providing the issue number and optional branch name:
+
+  ```bash
+  bash .agents/skills/gh-cli/scripts/start_issue.sh <issue_number> [optional_branch_name]
+  ```
+
+* **Manual Command Fallback:**
+
   ```bash
   git worktree add -b <branch-name> .worktrees/<branch-name> origin/master
   ```
+
 * **Navigate to Worktree:**
+
   ```bash
   cd .worktrees/<branch-name>
   ```
-  *Note: All subsequent commands, file modifications, and validation tests must be performed within this worktree directory to ensure isolation.*
+
+  *Note: Perform all subsequent edits, tests, and checks inside this worktree directory.*
 
 ---
 
-### 2. Implementation & SSDLC Security Principles
-When modifying or creating code, adhere strictly to the following secure software development principles:
+### 2. Local Environment Synchronization
 
-* **Typing & Quality:** Enforce static typing and avoid any `Any` types where possible. Follow standard PEP 8 naming conventions.
-* **No Secret Hardcoding:**
-  * Never place credentials, API keys, or secrets directly in the source code.
-  * Retrieve config values from environment variables or a configuration manager.
-  * Never commit `.env` files or expose credentials in logs or shell traces.
-* **Documentation Requirement:**
-  * For every new feature, tool, or utility, write extensive documentation.
-  * Update [README.md](file:///Users/user/Documents/projects/agentic_template/agentic_template/README.md) or create dedicated documentation files if needed.
-  * Document API interfaces, usage examples, and installation/configuration prerequisites.
-* **Extensive Testing:**
-  * Prefer writing tests alongside or before implementation.
-  * Place unit and integration tests under the `tests/` directory close to the code changed.
+Always synchronize the Python environment to obtain correct dependencies:
+
+```bash
+uv sync --extra all
+```
 
 ---
 
-### 3. Docker-Sandboxed Validation
-To isolate execution from the host system and ensure dependencies are correct, run all validation steps (formatting, linting, security scans, and tests) within a Docker container.
+### 3. Implementation & Secure Coding Guidelines
 
-* **Build the Docker Image:**
-  From the root of your worktree, build the image:
+Ensure compliance with SSDLC and code quality standards:
+
+* **Static Typing**: Annotate variables and functions. Avoid using `Any`.
+* **Zero Hardcoded Secrets**:
+  * Never hardcode API keys, passwords, or tokens in source files.
+  * Read configuration properties from environment variables or secure credential managers.
+  * Never commit `.env` files or log raw token credentials.
+* **Documentation**:
+  * Keep documentation updated. Create or modify files under the `docs/` folder (such as `docs/README.md`, `docs/components.md`, `docs/diagrams.md`).
+  * Use relative path links within codebase markdown documents so they remain portable.
+* **Testing**:
+  * Write test cases alongside code modifications.
+  * Save tests under the `tests/` directory (e.g. using `pytest`).
+
+---
+
+### 4. Running Validation Checks
+
+Before committing, run tests, linters, and security checks:
+
+* **Docker-Sandboxed Validation (Recommended):**
+  Ensures isolation from the host environment:
+
   ```bash
+  # Build the container
   docker build -f docker/Dockerfile -t agentic-template:latest .
+
+  # Run formatting, linting, type checks, security checks, and testing
+  docker run --rm -v "$(pwd)":/app -v /app/.venv agentic-template:latest bash -c "
+    set -e
+    echo '=== Syncing lint and test dependencies ==='
+    uv sync --locked --extra lint,test
+    echo '=== Running pre-commit validations ==='
+    uv run pre-commit run --all-files
+  "
   ```
-* **Run Linting & Code Quality Checks:**
+
+* **Local Fallback:**
+  If Docker is not running or available:
+
   ```bash
-  # Format check
-  docker run --rm -v "$(pwd)":/app agentic-template:latest uv run ruff format --check src/ tests/
-  # Lint check
-  docker run --rm -v "$(pwd)":/app agentic-template:latest uv run ruff check src/ tests/
-  # Static type check
-  docker run --rm -v "$(pwd)":/app agentic-template:latest uv run ty check src/ tests/
-  ```
-* **Run Bandit Security Analysis:**
-  ```bash
-  docker run --rm -v "$(pwd)":/app agentic-template:latest uv run bandit -c pyproject.toml -r src/
-  ```
-* **Run Unit Tests:**
-  ```bash
-  docker run --rm -v "$(pwd)":/app agentic-template:latest uv run pytest -v
+  uv run pre-commit run --all-files
   ```
 
 ---
 
-### 4. Committing and PR Preparation
-Once all checks pass inside the Docker sandbox:
+### 5. Git Commit & Semantic Message Standard
 
-1. Stage and commit your changes:
-   ```bash
-   git add -A
-   git commit -m "feat(scope): implement new feature and write tests/docs"
-   ```
-2. Push to remote:
-   ```bash
-   git push -u origin HEAD
-   ```
-3. Submit a pull request on GitHub (e.g. using `gh pr create --fill --draft`).
+Stage your files and commit them using the Conventional Commit convention:
+
+* **Format:** `<type>(<scope>)?(!)?: <description>`
+* **Allowed Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
+* **Command:**
+
+  ```bash
+  git add -A
+  git commit -m "feat(sdk): implement new backend wrapper and add unit tests"
+  ```
 
 ---
 
-### 5. Workspace Cleanup
-After your PR is merged or closed, clean up the worktree to release disk space and maintain a tidy workspace.
+### 6. Pushing & Authenticating with GitHub
 
-1. Navigate back to the repository root directory:
+Before running any `gh` CLI commands, retrieve the GitHub PAT from your environment or credentials file:
+
+```bash
+# Locate and export the GitHub token
+export GITHUB_TOKEN=$(grep '^GITHUB_TOKEN=' .env | cut -d= -f2- | xargs)
+
+# If in a worktree and .env is in the project root:
+export GITHUB_TOKEN=$(grep '^GITHUB_TOKEN=' ../../.env | cut -d= -f2- | xargs)
+
+# Push the branch to origin
+git push -u origin HEAD
+```
+
+---
+
+### 7. Pull Request Submission & Template Validation
+
+Every pull request must follow the structure in `.github/pull_request_template.md`.
+
+* **Automated Submission (Recommended):**
+  The script automatically runs Docker validations, commits your staged changes semantically, pushes them, and creates a draft PR:
+
+  ```bash
+  bash .agents/skills/gh-cli/scripts/submit_pr.sh <type> [scope] <description>
+  ```
+
+* **Manual PR Creation with Template:**
+  1. Create a temporary file containing the PR template:
+     ```bash
+     cp .github/pull_request_template.md temp_pr_body.md
+     # (Edit temp_pr_body.md to complete all sections and replace [Answer here] placeholders)
+     ```
+  2. Create the Pull Request using the body file:
+     ```bash
+     gh pr create --body-file temp_pr_body.md --draft
+     ```
+  3. Clean up the temporary file:
+     ```bash
+     rm temp_pr_body.md
+     ```
+
+* **PR Template Guidelines:**
+  * Complete all required sections: **Summary**, **Key Changes**, **Discussion & Pitfalls**, and **Verification**.
+  * Keep the guiding template questions in plain text inside the PR description; **do not delete them**.
+  * Fully replace the `[Answer here]` placeholders with detailed verification, testing output, and rationale.
+
+---
+
+### 8. Cleanup
+
+After the pull request has been merged or closed, prune the worktree to clean up the local environment:
+
+1. Return to the project root:
+
    ```bash
    cd ../..
    ```
-2. Prune the worktree and delete the local branch:
+
+2. Remove the worktree and delete the local task branch:
+
    ```bash
    git worktree remove .worktrees/<branch-name>
    git branch -d <branch-name>
