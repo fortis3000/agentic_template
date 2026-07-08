@@ -206,6 +206,6 @@ agent:
         encoding="utf-8",
     )
     agent = cast(PydanticAIAgent, generator.create_agent(str(config_ollama)))
-    assert agent.agent.model.__class__.__name__ == "OpenAIChatModel"
+    assert agent.agent.model.__class__.__name__ == "OllamaModel"
     assert hasattr(agent.agent.model, "model_name")
     assert getattr(agent.agent.model, "model_name") == "llama3"
