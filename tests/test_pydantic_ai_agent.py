@@ -121,7 +121,9 @@ agent:
 def test_agent_inputs_mapping(tmp_path):
     """Test mapping multimodal inputs to Pydantic AI primitives (BinaryContent)."""
     config_file = tmp_path / "agent_config.yaml"
-    config_file.write_text("agent: {name: 'test_agent'}", encoding="utf-8")
+    config_file.write_text(
+        "agent: {name: 'test_agent', model: 'gemini-3.5-flash'}", encoding="utf-8"
+    )
 
     generator = PydanticAIAgentGenerator(prompt_base_dir=tmp_path)
     agent = cast(PydanticAIAgent, generator.create_agent(str(config_file)))

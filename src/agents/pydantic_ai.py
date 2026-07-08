@@ -6,7 +6,6 @@ from typing import Any, Callable
 import yaml
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from opentelemetry import trace
-from pydantic import BaseModel, Field
 from pydantic_ai import Agent as PA_Agent
 from pydantic_ai import BinaryContent
 from pydantic_ai.models import Model
@@ -18,32 +17,12 @@ from pydantic_ai.providers.google import GoogleProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from src.agents.base import AgentInputPart, BaseAgent, BaseAgentGenerator, ImagePart, TextPart
+from src.agents.config import AgentConfigSchema, AgentYamlConfig
 from src.agents.google_antigravity import trace_tool
 from src.agents.prompt_manager import PromptManager
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
-
-
-class AgentConfigSchema(BaseModel):
-    name: str = "default_agent"
-    model: str = "gemini-3.5-flash"
-    provider: str | None = None
-    base_url: str | None = None
-    system_prompt_path: str | None = None
-    system_prompt: str | None = None
-    system_prompt_format: str = "f-string"
-    user_prompt_path: str | None = None
-    user_prompt: str | None = None
-    user_prompt_format: str = "f-string"
-    app_data_dir: str | None = None
-    streaming: bool = False
-    tools: list[str] = Field(default_factory=list)
-    mcp_servers: dict[str, Any] = Field(default_factory=dict)
-
-
-class AgentYamlConfig(BaseModel):
-    agent: AgentConfigSchema
 
 
 class ModelFactory:
@@ -313,15 +292,8 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
 
         prompt_manager = PromptManager(base_dir=self.prompt_base_dir)
 
-        # 3. Resolve System instructions
-        system_prompt = ""
-        system_prompt_source = agent_data.system_prompt_path or agent_data.system_prompt
-        if system_prompt_source:
-            system_prompt = prompt_manager.load_prompt(
-                system_prompt_source,
-                variables=system_variables,
-                format_style=agent_data.system_prompt_format,
-            )
+        # 3. Resolve System instructions using the connected config method
+        system_prompt = agent_data.get_system_prompt(prompt_manager, variables=system_variables)
 
         # 4. Resolve Tools
         tools = []
