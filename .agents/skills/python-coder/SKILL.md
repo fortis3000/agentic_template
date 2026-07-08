@@ -139,11 +139,20 @@ Every pull request must follow the structure in `.github/pull_request_template.m
   bash .agents/skills/gh-cli/scripts/submit_pr.sh <type> [scope] <description>
   ```
 
-* **Manual PR Creation:**
-
-  ```bash
-  gh pr create --fill --draft
-  ```
+* **Manual PR Creation with Template:**
+  1. Create a temporary file containing the PR template:
+     ```bash
+     cp .github/pull_request_template.md temp_pr_body.md
+     # (Edit temp_pr_body.md to complete all sections and replace [Answer here] placeholders)
+     ```
+  2. Create the Pull Request using the body file:
+     ```bash
+     gh pr create --body-file temp_pr_body.md --draft
+     ```
+  3. Clean up the temporary file:
+     ```bash
+     rm temp_pr_body.md
+     ```
 
 * **PR Template Guidelines:**
   * Complete all required sections: **Summary**, **Key Changes**, **Discussion & Pitfalls**, and **Verification**.
