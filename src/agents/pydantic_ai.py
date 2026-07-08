@@ -11,9 +11,11 @@ from pydantic_ai import BinaryContent
 from pydantic_ai.models import Model
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.google import GoogleModel
+from pydantic_ai.models.ollama import OllamaModel
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.google import GoogleProvider
+from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from src.agents.base import AgentInputPart, BaseAgent, BaseAgentGenerator, ImagePart, TextPart
@@ -65,8 +67,8 @@ class ModelFactory:
 
         elif provider == "ollama":
             url = base_url or os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434/v1"
-            openai_provider = OpenAIProvider(api_key=api_key or "ollama", base_url=url)
-            return OpenAIChatModel(model_name=clean_model_name, provider=openai_provider)
+            ollama_provider = OllamaProvider(base_url=url, api_key=api_key)
+            return OllamaModel(model_name=clean_model_name, provider=ollama_provider)
 
         elif provider == "anthropic":
             key = api_key or os.getenv("ANTHROPIC_API_KEY") or "placeholder_key"
