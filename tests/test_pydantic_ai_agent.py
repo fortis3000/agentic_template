@@ -166,7 +166,7 @@ def test_agent_config_model_factory(tmp_path):
         """
 agent:
   name: "google_agent"
-  model: "gemini-1.5-flash"
+  model: "gemini-2.5-flash"
   provider: "google"
 """,
         encoding="utf-8",
@@ -175,7 +175,7 @@ agent:
     agent = cast(PydanticAIAgent, generator.create_agent(str(config_google)))
     assert agent.agent.model.__class__.__name__ == "GoogleModel"
     assert hasattr(agent.agent.model, "model_name")
-    assert getattr(agent.agent.model, "model_name") == "gemini-1.5-flash"
+    assert getattr(agent.agent.model, "model_name") == "gemini-2.5-flash"
 
     # 2. Test openai provider configuration
     config_openai = tmp_path / "config_openai.yaml"
