@@ -200,6 +200,7 @@ async def test_pydantic_ai_agent_and_tool_tracing(tmp_path, otel_setup):
 agent:
   name: "test_pydantic_agent"
   model: "gemini-2.0-flash"
+  provider: "google"
   system_prompt: "System instruction"
   user_prompt: "User query: {query}"
   tools:
@@ -286,6 +287,7 @@ async def test_pydantic_ai_agent_and_tool_tracing_exceptions(tmp_path, otel_setu
 agent:
   name: "test_pydantic_agent_err"
   model: "gemini-2.0-flash"
+  provider: "google"
   system_prompt: "System instruction"
   user_prompt: "User query: {query}"
   tools:

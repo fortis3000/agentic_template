@@ -8,7 +8,7 @@ from src.agents.prompt_manager import PromptManager
 class AgentConfigSchema(BaseModel):
     name: str
     model: str
-    provider: str | None = None
+    provider: str
     base_url: str | None = None
     system_prompt_path: str | None = None
     system_prompt: str | None = None

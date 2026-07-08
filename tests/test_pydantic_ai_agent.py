@@ -23,6 +23,7 @@ def test_agent_config_parsing(tmp_path):
 agent:
   name: "test_pydantic_agent"
   model: "gemini-2.0-flash"
+  provider: "google"
   system_prompt: "System instruction for {role}"
   user_prompt: "User instruction for {query}"
   app_data_dir: "data"
@@ -69,6 +70,7 @@ async def test_agent_call_mocked(tmp_path):
 agent:
   name: "test_agent"
   model: "gemini-2.0-flash"
+  provider: "google"
   system_prompt: "System prompt"
   user_prompt: "User query: {query}"
 """,
@@ -103,6 +105,7 @@ def test_agent_call_sync_mocked(tmp_path):
 agent:
   name: "test_agent"
   model: "gemini-2.0-flash"
+  provider: "google"
   system_prompt: "System prompt"
   user_prompt: "User query: {query}"
 """,
@@ -122,7 +125,8 @@ def test_agent_inputs_mapping(tmp_path):
     """Test mapping multimodal inputs to Pydantic AI primitives (BinaryContent)."""
     config_file = tmp_path / "agent_config.yaml"
     config_file.write_text(
-        "agent: {name: 'test_agent', model: 'gemini-3.5-flash'}", encoding="utf-8"
+        "agent: {name: 'test_agent', model: 'gemini-3.5-flash', provider: 'google'}",
+        encoding="utf-8",
     )
 
     generator = PydanticAIAgentGenerator(prompt_base_dir=tmp_path)

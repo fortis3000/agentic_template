@@ -29,35 +29,13 @@ class ModelFactory:
     """Factory to resolve Pydantic AI Model instances based on the provider."""
 
     @staticmethod
-    def detect_provider(model_name: str, base_url: str | None = None) -> str:
-        """Detect model provider based on model name and base URL fallback."""
-        model_name_lower = model_name.lower().strip()
-        if base_url or model_name_lower.startswith("ollama:"):
-            return "ollama"
-        elif (
-            model_name_lower.startswith("gemini-")
-            or model_name_lower.startswith("google:")
-            or model_name_lower.startswith("gemini:")
-        ):
-            return "google"
-        elif model_name_lower.startswith("gpt-") or model_name_lower.startswith("openai:"):
-            return "openai"
-        elif model_name_lower.startswith("claude-") or model_name_lower.startswith("anthropic:"):
-            return "anthropic"
-        else:
-            return "google"
-
-    @staticmethod
     def create_model(
-        provider: str | None,
+        provider: str,
         model_name: str,
         base_url: str | None = None,
         api_key: str | None = None,
     ) -> Model[Any]:
         """Create and configure a Pydantic AI Model instance."""
-        if not provider:
-            provider = ModelFactory.detect_provider(model_name, base_url)
-
         provider = provider.lower().strip()
 
         # Clean prefix from model name if any
