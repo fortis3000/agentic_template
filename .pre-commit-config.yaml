@@ -63,17 +63,17 @@ repos:
         name: Frontend Lint (Oxlint)
         entry: npm --prefix frontend run lint
         language: system
-        files: ^frontend/src/.*\.(js|ts|tsx)$
+        files: ^frontend/src/.*\.(js|ts|tsx|svelte)$
         pass_filenames: false
       - id: frontend-format
         name: Frontend Format (Prettier)
         entry: npm --prefix frontend run format:check
         language: system
-        files: ^frontend/src/.*\.(js|ts|tsx|css|html)$
+        files: ^frontend/src/.*\.(js|ts|tsx|css|html|svelte)$
         pass_filenames: false
       - id: frontend-typecheck
         name: Frontend Type Check
         entry: npx --prefix frontend tsc -b frontend/tsconfig.json
         language: system
-        files: ^frontend/src/.*\.(ts|tsx)$
+        files: ^frontend/src/.*\.(ts|tsx|svelte)$
         pass_filenames: false
