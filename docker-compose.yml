@@ -37,8 +37,8 @@ services:
   phoenix:
     image: arizephoenix/phoenix:latest
     ports:
-      - "6060:6006" # Phoenix UI / OTLP HTTP endpoint
-      - "4317:4317" # OTLP gRPC endpoint
+      - "6060:6006"  # Phoenix UI / OTLP HTTP endpoint
+      - "4317:4317"  # OTLP gRPC endpoint
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:6006/healthz')"]
       interval: 5s

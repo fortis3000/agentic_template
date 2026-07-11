@@ -30,7 +30,9 @@ export function useAgent() {
   const [configs, setConfigs] = useState<string[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [files, setFiles] = useState<any[]>([]);
-  const [selectedConfig, setSelectedConfig] = useState<string>("configs/agent_config.yaml");
+  const [selectedConfig, setSelectedConfig] = useState<string>(
+    "configs/agent_config.yaml",
+  );
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -90,7 +92,9 @@ export function useAgent() {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
-      await fetch(`${API_BASE}/api/agent/stop/${sessionId}`, { method: "POST" });
+      await fetch(`${API_BASE}/api/agent/stop/${sessionId}`, {
+        method: "POST",
+      });
       setIsGenerating(false);
     } catch (err) {
       console.error("Failed to stop generation", err);
@@ -104,7 +108,10 @@ export function useAgent() {
       setToolCalls([]); // clear tool calls for new turn
 
       // Append user message immediately
-      const newMessages: Message[] = [...messages, { role: "user", content: query }];
+      const newMessages: Message[] = [
+        ...messages,
+        { role: "user", content: query },
+      ];
       setMessages(newMessages);
 
       let currentSessId = sessionId;
@@ -198,16 +205,16 @@ export function useAgent() {
                   prev.map((t) =>
                     t.name === data.tool && t.status === "running"
                       ? { ...t, status: "completed", output: data.output }
-                      : t
-                  )
+                      : t,
+                  ),
                 );
               } else if (eventType === "tool_error") {
                 setToolCalls((prev) =>
                   prev.map((t) =>
                     t.name === data.tool && t.status === "running"
                       ? { ...t, status: "error", error: data.error }
-                      : t
-                  )
+                      : t,
+                  ),
                 );
               } else if (eventType === "done") {
                 setMessages((prev) => {
@@ -253,7 +260,7 @@ export function useAgent() {
         fetchFiles();
       }
     },
-    [messages, sessionId, selectedConfig, fetchSessions, fetchFiles]
+    [messages, sessionId, selectedConfig, fetchSessions, fetchFiles],
   );
 
   const startNewSession = useCallback(() => {

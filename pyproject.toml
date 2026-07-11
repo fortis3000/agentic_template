@@ -27,6 +27,7 @@ lint = [
     "ty",
     "pre-commit",
     "sqlfluff",
+    "yamllint",
 ]
 test = [
     "pytest>=8.2.0",

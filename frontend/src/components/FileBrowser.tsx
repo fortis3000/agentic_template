@@ -12,7 +12,10 @@ interface FileBrowserProps {
   onRefresh: () => void;
 }
 
-export const FileBrowser: React.FC<FileBrowserProps> = ({ files, onRefresh }) => {
+export const FileBrowser: React.FC<FileBrowserProps> = ({
+  files,
+  onRefresh,
+}) => {
   const formatBytes = (bytes: number, decimals = 2) => {
     if (bytes === 0) return "0 Bytes";
     const k = 1024;
@@ -23,7 +26,11 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ files, onRefresh }) =>
   };
 
   const getFileIcon = (name: string) => {
-    if (name.endsWith(".txt") || name.endsWith(".md") || name.endsWith(".json")) {
+    if (
+      name.endsWith(".txt") ||
+      name.endsWith(".md") ||
+      name.endsWith(".json")
+    ) {
       return <FileText size={16} className="text-secondary" />;
     }
     return <File size={16} className="text-muted" />;
@@ -54,7 +61,10 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ files, onRefresh }) =>
             >
               <div className="flex align-items-center gap-2 text-ellipsis flex-grow">
                 {getFileIcon(file.name)}
-                <span className="file-name font-mono text-sm text-ellipsis" title={file.path}>
+                <span
+                  className="file-name font-mono text-sm text-ellipsis"
+                  title={file.path}
+                >
                   {file.name}
                 </span>
               </div>

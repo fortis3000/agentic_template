@@ -28,7 +28,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <span className="brand-title">Agentic Codex</span>
       </div>
 
-      <button className="new-chat-btn flex align-items-center justify-content-center gap-2" onClick={onNewSession}>
+      <button
+        className="new-chat-btn flex align-items-center justify-content-center gap-2"
+        onClick={onNewSession}
+      >
         <Plus size={18} />
         <span>New Session</span>
       </button>
@@ -66,7 +69,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => onSelectSession(sess.session_id)}
               >
                 <div className="session-title text-ellipsis">
-                  {sess.last_message || `Session ${sess.session_id.substring(0, 8)}`}
+                  {sess.last_message ||
+                    `Session ${sess.session_id.substring(0, 8)}`}
                 </div>
                 <div className="session-meta">
                   {new Date(sess.updated_at * 1000).toLocaleTimeString([], {
@@ -78,7 +82,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             );
           })}
           {sessions.length === 0 && (
-            <div className="text-muted p-2 text-center text-sm">No history yet</div>
+            <div className="text-muted p-2 text-center text-sm">
+              No history yet
+            </div>
           )}
         </ul>
       </div>

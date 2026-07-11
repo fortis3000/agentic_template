@@ -44,7 +44,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           <span>Agent Workspace Chat</span>
         </h3>
         {isGenerating && (
-          <button className="stop-btn flex align-items-center gap-1" onClick={onStop}>
+          <button
+            className="stop-btn flex align-items-center gap-1"
+            onClick={onStop}
+          >
             <Square size={12} fill="currentColor" />
             <span>Stop Agent</span>
           </button>
@@ -60,9 +63,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 {isAssistant ? <Bot size={16} /> : <User size={16} />}
               </div>
               <div className="message-bubble flex flex-column">
-                <div className="message-sender">{isAssistant ? "Agent" : "User"}</div>
+                <div className="message-sender">
+                  {isAssistant ? "Agent" : "User"}
+                </div>
                 <div className="message-text">
-                  {msg.content ? renderContent(msg.content) : <span className="streaming-cursor">█</span>}
+                  {msg.content ? (
+                    renderContent(msg.content)
+                  ) : (
+                    <span className="streaming-cursor">█</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -73,14 +82,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             <Bot size={48} className="welcome-logo mb-3" />
             <h2>Welcome to Agentic Codex</h2>
             <p className="text-muted text-sm max-w-sm">
-              Ask the agent to perform actions, execute workflows, or call custom tools. Everything streams in real-time.
+              Ask the agent to perform actions, execute workflows, or call
+              custom tools. Everything streams in real-time.
             </p>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      <form className="chat-input-container p-3 flex gap-2" onSubmit={handleSubmit}>
+      <form
+        className="chat-input-container p-3 flex gap-2"
+        onSubmit={handleSubmit}
+      >
         <input
           type="text"
           className="chat-input flex-grow"

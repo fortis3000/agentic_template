@@ -1,5 +1,12 @@
 import React, { useState } from "react";
-import { Terminal, ChevronDown, ChevronRight, Play, CheckCircle, AlertTriangle } from "lucide-react";
+import {
+  Terminal,
+  ChevronDown,
+  ChevronRight,
+  Play,
+  CheckCircle,
+  AlertTriangle,
+} from "lucide-react";
 import type { ToolCall } from "../hooks/useAgent";
 
 interface TracePanelProps {
@@ -7,7 +14,9 @@ interface TracePanelProps {
 }
 
 export const TracePanel: React.FC<TracePanelProps> = ({ toolCalls }) => {
-  const [expandedCalls, setExpandedCalls] = useState<Record<string, boolean>>({});
+  const [expandedCalls, setExpandedCalls] = useState<Record<string, boolean>>(
+    {},
+  );
 
   const toggleExpand = (id: string) => {
     setExpandedCalls((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -37,18 +46,29 @@ export const TracePanel: React.FC<TracePanelProps> = ({ toolCalls }) => {
         {toolCalls.map((call) => {
           const isExpanded = !!expandedCalls[call.id];
           return (
-            <div key={call.id} className={`trace-item border-radius-sm mb-2 ${call.status}`}>
+            <div
+              key={call.id}
+              className={`trace-item border-radius-sm mb-2 ${call.status}`}
+            >
               <div
                 className="trace-item-header flex align-items-center justify-content-between p-2 pointer"
                 onClick={() => toggleExpand(call.id)}
               >
                 <div className="flex align-items-center gap-2">
                   {getStatusIcon(call.status)}
-                  <span className="tool-name font-mono text-sm">{call.name}</span>
+                  <span className="tool-name font-mono text-sm">
+                    {call.name}
+                  </span>
                 </div>
                 <div className="flex align-items-center gap-1">
-                  <span className="tool-status text-xs uppercase">{call.status}</span>
-                  {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  <span className="tool-status text-xs uppercase">
+                    {call.status}
+                  </span>
+                  {isExpanded ? (
+                    <ChevronDown size={14} />
+                  ) : (
+                    <ChevronRight size={14} />
+                  )}
                 </div>
               </div>
 

@@ -53,5 +53,27 @@ repos:
         entry: bash .agents/scripts/validate_commit_message.sh
         language: system
         stages: [commit-msg]
-
-
+      - id: yamllint
+        name: Yamllint Scan
+        entry: uv run yamllint .
+        language: system
+        files: \.(yaml|yml)$
+        pass_filenames: false
+      - id: frontend-lint
+        name: Frontend Lint (Oxlint)
+        entry: npm --prefix frontend run lint
+        language: system
+        files: ^frontend/src/.*\.(js|ts|tsx)$
+        pass_filenames: false
+      - id: frontend-format
+        name: Frontend Format (Prettier)
+        entry: npm --prefix frontend run format:check
+        language: system
+        files: ^frontend/src/.*\.(js|ts|tsx|css|html)$
+        pass_filenames: false
+      - id: frontend-typecheck
+        name: Frontend Type Check
+        entry: npx --prefix frontend tsc -b frontend/tsconfig.json
+        language: system
+        files: ^frontend/src/.*\.(ts|tsx)$
+        pass_filenames: false
