@@ -70,7 +70,7 @@
         class="chat-welcome flex flex-column align-items-center justify-content-center h-full text-center p-4"
       >
         <Bot size={48} class="welcome-logo mb-3" />
-        <h2>Welcome to Agentic Codex</h2>
+        <h2>Welcome to Agentic Dashboard</h2>
         <p class="text-muted text-sm max-w-sm">
           Ask the agent to perform actions, execute workflows, or call custom
           tools. Everything streams in real-time.

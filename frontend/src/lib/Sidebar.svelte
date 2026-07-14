@@ -8,7 +8,7 @@
 <aside class="sidebar flex flex-column">
   <div class="sidebar-brand flex align-items-center gap-2">
     <Cpu size={24} class="brand-icon" />
-    <span class="brand-title">Agentic Codex</span>
+    <span class="brand-title">Agentic Dashboard</span>
   </div>
 
   <button
