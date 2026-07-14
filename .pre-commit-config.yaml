@@ -60,7 +60,7 @@ repos:
         files: \.(yaml|yml)$
         pass_filenames: false
       - id: frontend-lint
-        name: Frontend Lint (Oxlint)
+        name: Frontend Lint & Type Check (Svelte)
         entry: npm --prefix frontend run lint
         language: system
         files: ^frontend/src/.*\.(js|ts|tsx|svelte)$
@@ -70,10 +70,4 @@ repos:
         entry: npm --prefix frontend run format:check
         language: system
         files: ^frontend/src/.*\.(js|ts|tsx|css|html|svelte)$
-        pass_filenames: false
-      - id: frontend-typecheck
-        name: Frontend Type Check
-        entry: npx --prefix frontend tsc -b frontend/tsconfig.json
-        language: system
-        files: ^frontend/src/.*\.(ts|tsx|svelte)$
         pass_filenames: false
