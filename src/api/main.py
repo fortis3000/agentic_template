@@ -4,6 +4,7 @@ import functools
 import inspect
 import json
 import re
+import sys
 import uuid
 from pathlib import Path
 from typing import Any, Callable, cast
@@ -17,6 +18,19 @@ from src.agents.pydantic_ai import PydanticAIAgentGenerator
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# Initialize Phoenix OpenTelemetry tracing (only if not running under pytest)
+if "pytest" not in sys.modules:
+    try:
+        from phoenix.otel import register
+
+        register(
+            project_name="agentic-template",
+            auto_instrument=True,
+        )
+        logger.info("Arize Phoenix OpenTelemetry tracing initialized successfully.")
+    except Exception as e:
+        logger.error(f"Failed to initialize Arize Phoenix tracing: {e}")
 
 app = FastAPI(title="Agentic Template UI API", version="1.0.0")
 
