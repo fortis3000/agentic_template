@@ -303,6 +303,35 @@ def get_session(session_id: str):
     return {"session_id": session_id, "history": history}
 
 
+@app.delete("/api/sessions/{session_id}")
+def delete_session(session_id: str):
+    """Deletes a session history file and cleans up active execution/stream if any."""
+    validate_session_id(session_id)
+
+    # 1. Cancel and remove active task/stream if running
+    if session_id in active_tasks:
+        active_tasks[session_id].cancel()
+        active_tasks.pop(session_id, None)
+
+    active_streams.pop(session_id, None)
+
+    # 2. Delete the session history file
+    try:
+        file_path = get_session_file(session_id)
+        if file_path.exists():
+            file_path.unlink()
+            return {"session_id": session_id, "status": "deleted"}
+        else:
+            raise HTTPException(status_code=404, detail="Session history not found")
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to delete session file: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
 @app.get("/api/files")
 def get_files():
     """Lists files in the data/ folder for the File Explorer panel."""

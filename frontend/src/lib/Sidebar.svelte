@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { MessageSquare, Plus, Settings, Cpu } from "@lucide/svelte";
+  import { MessageSquare, Plus, Settings, Cpu, Trash2 } from "@lucide/svelte";
   import type { AgentController } from "./agent.svelte.ts";
 
   let { controller }: { controller: AgentController } = $props();
@@ -44,18 +44,35 @@
         <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <li
-          class="session-item {isActive ? 'active' : ''}"
+          class="session-item flex align-items-center justify-content-between {isActive
+            ? 'active'
+            : ''}"
           onclick={() => controller.loadSession(sess.session_id)}
         >
-          <div class="session-title text-ellipsis">
-            {sess.last_message || `Session ${sess.session_id.substring(0, 8)}`}
+          <div class="session-info flex-grow text-ellipsis">
+            <div class="session-title text-ellipsis">
+              {sess.last_message ||
+                `Session ${sess.session_id.substring(0, 8)}`}
+            </div>
+            <div class="session-meta">
+              {new Date(sess.updated_at * 1000).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </div>
           </div>
-          <div class="session-meta">
-            {new Date(sess.updated_at * 1000).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </div>
+          <button
+            class="delete-session-btn flex align-items-center justify-content-center p-1 pointer"
+            title="Delete Session"
+            onclick={(e) => {
+              e.stopPropagation();
+              if (confirm("Are you sure you want to delete this session?")) {
+                controller.deleteSession(sess.session_id);
+              }
+            }}
+          >
+            <Trash2 size={14} />
+          </button>
         </li>
       {/each}
       {#if controller.sessions.length === 0}

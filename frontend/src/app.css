@@ -278,11 +278,15 @@ body {
   gap: 0.25rem;
 }
 .session-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 0.6rem 0.75rem;
   border-radius: 6px;
   cursor: pointer;
   transition: all var(--transition-fast);
   border: 1px solid transparent;
+  gap: 0.5rem;
 }
 .session-item:hover {
   background-color: var(--bg-tertiary);
@@ -291,6 +295,9 @@ body {
 .session-item.active {
   background-color: var(--bg-tertiary);
   border-color: var(--primary-hover);
+}
+.session-info {
+  min-width: 0; /* allows text truncation inside flex item */
 }
 .session-title {
   font-size: 0.85rem;
@@ -301,6 +308,21 @@ body {
   font-size: 0.7rem;
   color: var(--text-muted);
   margin-top: 0.2rem;
+}
+.delete-session-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: all var(--transition-fast);
+  border-radius: 4px;
+}
+.session-item:hover .delete-session-btn {
+  opacity: 1;
+}
+.delete-session-btn:hover {
+  color: var(--error);
+  background-color: var(--error-bg);
 }
 
 /* Main Dashboard Panel Layout */

@@ -5,6 +5,7 @@ from src.api.main import SESSIONS_DIR, app
 
 HTTP_200_OK = 200
 HTTP_400_BAD_REQUEST = 400
+HTTP_404_NOT_FOUND = 404
 HTTP_422_UNPROCESSABLE_ENTITY = 422
 
 
@@ -124,4 +125,32 @@ def test_stop_agent_invalid_id(client):
 
 def test_stream_agent_invalid_id(client):
     response = client.get("/api/agent/stream/invalid_id!")
+    assert response.status_code == HTTP_400_BAD_REQUEST
+
+
+def test_delete_session_success(client):
+    # 1. Create a dummy session file first
+    session_id = "test-delete-session-abc"
+    session_file = SESSIONS_DIR / f"{session_id}.json"
+    session_file.write_text("[]", encoding="utf-8")
+    assert session_file.exists()
+
+    # 2. Delete the session
+    response = client.delete(f"/api/sessions/{session_id}")
+    assert response.status_code == HTTP_200_OK
+    data = response.json()
+    assert data["session_id"] == session_id
+    assert data["status"] == "deleted"
+
+    # 3. Assert the file is deleted
+    assert not session_file.exists()
+
+
+def test_delete_session_not_found(client):
+    response = client.delete("/api/sessions/nonexistent-session-id")
+    assert response.status_code == HTTP_404_NOT_FOUND
+
+
+def test_delete_session_invalid_id(client):
+    response = client.delete("/api/sessions/invalid_id!")
     assert response.status_code == HTTP_400_BAD_REQUEST

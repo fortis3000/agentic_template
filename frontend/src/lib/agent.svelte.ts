@@ -97,6 +97,27 @@ export class AgentController {
     }
   }
 
+  // Delete a session
+  async deleteSession(id: string) {
+    try {
+      const res = await fetch(`${API_BASE}/api/sessions/${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        // If the deleted session was the active one, clear current session details
+        if (this.sessionId === id) {
+          this.startNewSession();
+        }
+        // Refresh sessions list
+        this.fetchSessions();
+      } else {
+        console.error("Failed to delete session on backend");
+      }
+    } catch (err) {
+      console.error("Failed to delete session", err);
+    }
+  }
+
   // Cancel running execution
   async stopGeneration() {
     if (!this.sessionId) return;
