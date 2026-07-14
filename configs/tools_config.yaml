@@ -9,3 +9,8 @@ tools:
     config:
       spreadsheet_id: "YOUR_SPREADSHEET_ID_HERE"
       credentials_path: null
+  add_vocab_entry:
+    type: "google_sheet_add_vocab_entry"
+    config:
+      spreadsheet_id: "YOUR_SPREADSHEET_ID_HERE"
+      credentials_path: null

@@ -107,3 +107,101 @@ class GoogleSheetsWriteTool(BaseTool):
             return result
 
         return write_google_sheet
+
+
+@ToolFactory.register("google_sheet_add_vocab_entry")
+class GoogleSheetsAddVocabEntryTool(BaseTool):
+    """Tool for adding a new vocabulary entry to the Google Sheet."""
+
+    def __init__(self, spreadsheet_id: str, credentials_path: str | None = None):
+        self.client = GoogleSheetsClient(credentials_path=credentials_path)
+        self.spreadsheet_id = spreadsheet_id
+
+    def get_callable(self) -> Callable:
+        def add_vocab_entry(
+            target_german: str,
+            gender: str,
+            native_translation: str,
+            hint_disambiguation: str = "",
+        ) -> Dict[str, Any]:
+            """Adds a new vocabulary entry to the configured Google Sheet.
+
+            Generates a unique ID (e.g. vocab_word_01) and appends the entry
+            to the end of the table automatically.
+
+            Args:
+                target_german: The German word or phrase (e.g. 'die Katze').
+                gender: The grammatical gender (e.g. 'die', 'der', 'das', or empty).
+                native_translation: The English translation (e.g. 'cat').
+                hint_disambiguation: Optional usage hint or disambiguation.
+
+            Returns:
+                A dictionary indicating success and details of the written row.
+            """
+            # 1. Read existing rows to determine the next empty row
+            try:
+                existing_rows = self.client.read_range(self.spreadsheet_id, "A1:E500")
+            except Exception as e:
+                logger.error(f"Failed to read sheet before appending: {e}")
+                raise ValueError(f"Failed to read existing rows: {e}")
+
+            last_row_num = len(existing_rows)
+            next_row_num = last_row_num + 1
+
+            # 2. Format unique ID
+            # Strip gender prefixes if present to get clean word for ID
+            clean_word = target_german.lower()
+            for prefix in ["der ", "die ", "das ", "den ", "dem ", "des "]:
+                if clean_word.startswith(prefix):
+                    clean_word = clean_word[len(prefix) :]
+                    break
+            # Replace spaces and special characters
+            clean_id_suffix = "".join(c if c.isalnum() else "_" for c in clean_word).strip("_")
+            vocab_id = f"vocab_{clean_id_suffix}_01"
+
+            new_row = [vocab_id, target_german, gender, native_translation, hint_disambiguation]
+
+            # 3. Write row
+            write_range = f"A{next_row_num}:E{next_row_num}"
+            try:
+                result = self.client.write_range(self.spreadsheet_id, write_range, [new_row])
+            except Exception as e:
+                logger.error(f"Failed to write new entry: {e}")
+                raise ValueError(f"Failed to write new entry: {e}")
+
+            # 4. Verify post-write
+            try:
+                verification_row = self.client.read_range(self.spreadsheet_id, write_range)
+            except Exception as e:
+                logger.error(f"Failed to read back for verification: {e}")
+                raise ValueError(f"Post-write verification read failed: {e}")
+
+            if not verification_row or verification_row[0] != new_row:
+                # Attempt rollback by writing empty cells or old data
+                logger.warning(
+                    "Verification failed. Row did not match expected contents. Attempting rollback..."
+                )
+                try:
+                    self.client.write_range(
+                        self.spreadsheet_id, write_range, [["", "", "", "", ""]]
+                    )
+                except Exception as rollback_err:
+                    logger.critical(f"Rollback failed: {rollback_err}")
+                raise ValueError(
+                    "Write verification failed: read-back row did not match written row."
+                )
+
+            return {
+                "success": True,
+                "row_number": next_row_num,
+                "written_entry": {
+                    "w": vocab_id,
+                    "Target_German": target_german,
+                    "Gender": gender,
+                    "Native_Translation": native_translation,
+                    "Hint_Disambiguation": hint_disambiguation,
+                },
+                "api_response": result,
+            }
+
+        return add_vocab_entry
