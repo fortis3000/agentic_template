@@ -4,6 +4,8 @@ from fastapi.testclient import TestClient
 from src.api.main import SESSIONS_DIR, app
 
 HTTP_200_OK = 200
+HTTP_400_BAD_REQUEST = 400
+HTTP_422_UNPROCESSABLE_ENTITY = 422
 
 
 @pytest.fixture
@@ -67,3 +69,59 @@ def test_chat_and_stop_flow(client):
     session_file = SESSIONS_DIR / "test-session-123.json"
     if session_file.exists():
         session_file.unlink()
+
+
+def test_chat_invalid_session_id(client):
+    payload = {
+        "session_id": "../../invalid/session",
+        "config_path": "configs/agent_config.yaml",
+        "query": "Hello",
+    }
+    response = client.post("/api/agent/chat", json=payload)
+    # FastAPI returns 422 for pydantic validation errors
+    assert response.status_code == HTTP_422_UNPROCESSABLE_ENTITY
+
+
+def test_chat_invalid_config_path_traversal(client):
+    payload = {
+        "session_id": "valid-session-id",
+        "config_path": "configs/../../../../etc/passwd",
+        "query": "Hello",
+    }
+    response = client.post("/api/agent/chat", json=payload)
+    assert response.status_code == HTTP_422_UNPROCESSABLE_ENTITY
+
+
+def test_chat_nonexistent_config_path(client):
+    payload = {
+        "session_id": "valid-session-id",
+        "config_path": "configs/nonexistent_config_file_name.yaml",
+        "query": "Hello",
+    }
+    response = client.post("/api/agent/chat", json=payload)
+    assert response.status_code == HTTP_422_UNPROCESSABLE_ENTITY
+
+
+def test_chat_invalid_config_path_extension(client):
+    payload = {
+        "session_id": "valid-session-id",
+        "config_path": "configs/agent_config.txt",
+        "query": "Hello",
+    }
+    response = client.post("/api/agent/chat", json=payload)
+    assert response.status_code == HTTP_422_UNPROCESSABLE_ENTITY
+
+
+def test_get_session_invalid_id(client):
+    response = client.get("/api/sessions/invalid_id!")
+    assert response.status_code == HTTP_400_BAD_REQUEST
+
+
+def test_stop_agent_invalid_id(client):
+    response = client.post("/api/agent/stop/invalid_id!")
+    assert response.status_code == HTTP_400_BAD_REQUEST
+
+
+def test_stream_agent_invalid_id(client):
+    response = client.get("/api/agent/stream/invalid_id!")
+    assert response.status_code == HTTP_400_BAD_REQUEST

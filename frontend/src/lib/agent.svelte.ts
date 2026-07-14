@@ -1,4 +1,5 @@
 import { marked } from "marked";
+import DOMPurify from "dompurify";
 
 export interface Message {
   role: "user" | "assistant";
@@ -264,6 +265,7 @@ export class AgentController {
 
   // Render markdown helper
   renderMarkdown(content: string): string {
-    return marked.parse(content || "", { async: false }) as string;
+    const rawHtml = marked.parse(content || "", { async: false }) as string;
+    return DOMPurify.sanitize(rawHtml);
   }
 }

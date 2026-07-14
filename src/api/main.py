@@ -3,14 +3,15 @@ import contextvars
 import functools
 import inspect
 import json
+import re
 import uuid
 from pathlib import Path
 from typing import Any, Callable, cast
 
-from fastapi import BackgroundTasks, FastAPI
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from src.agents.pydantic_ai import PydanticAIAgentGenerator
 from src.utils.logger import get_logger
@@ -22,7 +23,10 @@ app = FastAPI(title="Agentic Template UI API", version="1.0.0")
 # Enable CORS for frontend local development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_headers=["*"],
     allow_methods=["*"],
@@ -37,10 +41,21 @@ MAX_PREVIEW_LENGTH = 60
 # Ensure sessions directory exists
 SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 
-# ContextVar to track the session ID across the call stack
+# ContextVars to track session ID and running loop across the call stack
 current_session_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "current_session_id", default=None
 )
+current_loop: contextvars.ContextVar[asyncio.AbstractEventLoop | None] = contextvars.ContextVar(
+    "current_loop", default=None
+)
+
+SESSION_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
+
+
+def validate_session_id(session_id: str) -> None:
+    if not SESSION_ID_PATTERN.match(session_id):
+        raise HTTPException(status_code=400, detail="Invalid session ID format")
+
 
 # Active execution state
 active_tasks: dict[str, asyncio.Task[None]] = {}
@@ -112,11 +127,7 @@ def make_stream_tool(tool_func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(tool_func)
         def sync_wrapped(*args: Any, **kwargs: Any) -> Any:
             sess_id = current_session_id.get()
-            loop = None
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                pass
+            loop = current_loop.get()
 
             if sess_id and sess_id in active_streams and loop:
                 loop.call_soon_threadsafe(
@@ -166,14 +177,50 @@ class ChatRequest(BaseModel):
     query: str
     system_variables: dict[str, Any] = {"role": "Senior Assistant"}
 
+    @field_validator("session_id")
+    @classmethod
+    def validate_session_id_field(cls, v: str | None) -> str | None:
+        if v is not None and not SESSION_ID_PATTERN.match(v):
+            raise ValueError(
+                "session_id must only contain alphanumeric characters, underscores, and hyphens"
+            )
+        return v
+
+    @field_validator("config_path")
+    @classmethod
+    def validate_config_path_field(cls, v: str) -> str:
+        path = Path(v)
+        if not path.is_absolute():
+            resolved = (WORKSPACE_ROOT / path).resolve()
+        else:
+            resolved = path.resolve()
+
+        configs_dir_resolved = CONFIGS_DIR.resolve()
+        if not resolved.is_relative_to(configs_dir_resolved):
+            raise ValueError("config_path must be located under the configs directory")
+        if not resolved.exists():
+            raise ValueError(f"config file does not exist: {v}")
+        if resolved.suffix.lower() not in (".yaml", ".yml"):
+            raise ValueError("config file must be a YAML file (.yaml or .yml)")
+        return v
+
 
 # Session helper functions
 def get_session_file(session_id: str) -> Path:
-    return SESSIONS_DIR / f"{session_id}.json"
+    if not SESSION_ID_PATTERN.match(session_id):
+        raise ValueError("Invalid session ID format")
+    resolved_path = (SESSIONS_DIR / f"{session_id}.json").resolve()
+    if not resolved_path.is_relative_to(SESSIONS_DIR.resolve()):
+        raise ValueError("Invalid session ID path traversal detected")
+    return resolved_path
 
 
 def load_session_history(session_id: str) -> list[dict[str, Any]]:
-    file_path = get_session_file(session_id)
+    try:
+        file_path = get_session_file(session_id)
+    except ValueError as e:
+        logger.error(f"Invalid session ID in load_session_history: {e}")
+        return []
     if not file_path.exists():
         return []
     try:
@@ -185,7 +232,11 @@ def load_session_history(session_id: str) -> list[dict[str, Any]]:
 
 
 def save_session_history(session_id: str, history: list[dict[str, Any]]) -> None:
-    file_path = get_session_file(session_id)
+    try:
+        file_path = get_session_file(session_id)
+    except ValueError as e:
+        logger.error(f"Invalid session ID in save_session_history: {e}")
+        return
     try:
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(history, f, indent=2, ensure_ascii=False)
@@ -227,12 +278,13 @@ def get_sessions():
         )
     # Sort by updated_at descending
     sessions.sort(key=lambda s: s["updated_at"], reverse=True)
-    return {"sessions": sorted(sessions, key=lambda s: s["updated_at"], reverse=True)}
+    return {"sessions": sessions}
 
 
 @app.get("/api/sessions/{session_id}")
 def get_session(session_id: str):
     """Retrieves full conversation history for a specific session."""
+    validate_session_id(session_id)
     history = load_session_history(session_id)
     return {"session_id": session_id, "history": history}
 
@@ -294,6 +346,7 @@ async def run_agent_in_background(
 ):
     """Runs agent execution, saves logs, and pumps events into the active stream queue."""
     token_context = current_session_id.set(session_id)
+    loop_context = current_loop.set(asyncio.get_running_loop())
     try:
         # Load existing history
         history = load_session_history(session_id)
@@ -333,11 +386,13 @@ async def run_agent_in_background(
             await active_streams[session_id].put({"event": "error", "text": str(e)})
     finally:
         current_session_id.reset(token_context)
+        current_loop.reset(loop_context)
 
 
 @app.get("/api/agent/stream/{session_id}")
 async def stream_agent(session_id: str):
     """SSE endpoint returning real-time agent generation and tool-calling events."""
+    validate_session_id(session_id)
     if session_id not in active_streams:
         # If no active queue, return immediate done
         async def empty_stream():
@@ -345,8 +400,10 @@ async def stream_agent(session_id: str):
 
         return StreamingResponse(empty_stream(), media_type="text/event-stream")
 
+    queue = active_streams[session_id]
+    task = active_tasks.get(session_id)
+
     async def event_generator():
-        queue = active_streams[session_id]
         while True:
             try:
                 # Add timeout to avoid waiting forever if task died silently
@@ -365,9 +422,11 @@ async def stream_agent(session_id: str):
                 yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
                 break
 
-        # Clean up queue when stream closes
-        active_streams.pop(session_id, None)
-        active_tasks.pop(session_id, None)
+        # Clean up queue when stream closes, only if they haven't been overwritten
+        if active_streams.get(session_id) is queue:
+            active_streams.pop(session_id, None)
+        if active_tasks.get(session_id) is task:
+            active_tasks.pop(session_id, None)
 
     return StreamingResponse(
         event_generator(),
@@ -382,6 +441,7 @@ async def stream_agent(session_id: str):
 @app.post("/api/agent/stop/{session_id}")
 def stop_agent(session_id: str):
     """Cancels the active running task for a session."""
+    validate_session_id(session_id)
     if session_id in active_tasks:
         task = active_tasks[session_id]
         task.cancel()

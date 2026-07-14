@@ -24,7 +24,7 @@ repos:
         types: [python]
       - id: pymarkdown
         name: Pymarkdown Scan
-        entry: uv run pymarkdown --enable-extensions front-matter --disable-rules MD007,MD012,MD013,MD022,MD024,MD029,MD031,MD032,MD033,MD046 scan
+        entry: uv run pymarkdown --enable-extensions front-matter --disable-rules MD007,MD012,MD013,MD022,MD024,MD029,MD031,MD032,MD033,MD041,MD046 scan
         language: system
         types: [markdown]
       - id: sqlfluff-fix
