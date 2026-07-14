@@ -126,6 +126,22 @@ export GITHUB_TOKEN=$(grep '^GITHUB_TOKEN=' ../../.env | cut -d= -f2- | xargs)
 git push -u origin HEAD
 ```
 
+**Always export `GITHUB_TOKEN` from `.env` first.** `gh` prefers the `GITHUB_TOKEN`/`GH_TOKEN`
+env var over its keyring credential. The keyring token often lacks access to this private repo
+and fails with `Could not resolve to a Repository` — the `.env` token is the one with access.
+
+**Avoid the default `gh issue view` / `gh pr view` TUI commands.** They query a `projectItems`
+field, and the fine-grained PAT lacks the *Projects* permission, so the whole command aborts with
+`Resource not accessible by personal access token (…projectItems…)`. Request explicit fields instead:
+
+```bash
+gh issue view <n> --json number,title,body,state,labels
+gh pr view <n>   --json number,title,body,state,headRefOid,url
+```
+
+(To fix this at the source rather than working around it, grant the PAT **Projects: Read-only**
+for this repo.)
+
 ---
 
 ### 7. Pull Request Submission & Template Validation

@@ -113,3 +113,74 @@ flowchart TD
     Step7 --> Step8["8. Create a PR & Fill Template<br/>(gh pr create --body-file ... or submit_pr.sh)"]
     Step8 --> Merge([PR Merged to Master])
 ```
+
+---
+
+## 4. Frontend & API System Architecture
+
+This diagram shows the system layout and communications mapping between Svelte 5 frontend, REST & SSE networks, FastAPI backend services, tool-interceptors, and local files persistence.
+
+```mermaid
+graph TD
+    subgraph ClientBrowser["Client Web Browser (Svelte 5 UI)"]
+        subgraph SvelteUI["UI Layer"]
+            App["App.svelte"]
+            Sidebar["Sidebar.svelte"]
+            ChatPanel["ChatPanel.svelte"]
+            TracePanel["TracePanel.svelte"]
+            FileBrowser["FileBrowser.svelte"]
+        end
+        Controller["AgentController (agent.svelte.ts)"]
+        State["Reactive State ($state)<br/>- Messages<br/>- Tool Calls<br/>- File List<br/>- Active Session"]
+    end
+
+    subgraph Network["Network Communication"]
+        HTTP["REST HTTP (GET/POST)<br/>- /api/configs<br/>- /api/sessions<br/>- /api/agent/chat<br/>- /api/agent/stop"]
+        SSE["Server-Sent Events (SSE)<br/>- /api/agent/stream/{session_id}"]
+    end
+
+    subgraph BackendAPI["Backend API (FastAPI)"]
+        API["FastAPI App (main.py)"]
+        StreamRouter["SSE Event Publisher & Streams"]
+        BackgroundTasks["Background Runner Task"]
+        Decorator["Tool Interceptor Decorator<br/>(make_stream_tool)"]
+    end
+
+    subgraph AgentEngine["Agent Engine"]
+        Agent["PydanticAIAgent / AntigravityAgent"]
+        Tools["Registered Python Tools"]
+    end
+
+    subgraph WorkspaceDisk["Local Workspace Storage"]
+        SessionsDir["data/sessions/ (JSON logs)"]
+        DataDir["data/ (Generated outputs)"]
+    end
+
+    %% Client bindings
+    App --> Sidebar
+    App --> ChatPanel
+    App --> TracePanel
+    App --> FileBrowser
+    Sidebar & ChatPanel & TracePanel & FileBrowser --> Controller
+    Controller <--> State
+
+    %% Network flows
+    Controller -->|REST Requests| HTTP
+    HTTP --> API
+    API -->|SSE Stream| SSE
+    SSE -->|Stream Event Parsing| Controller
+
+    %% Backend internal flow
+    API -->|Spawns| BackgroundTasks
+    BackgroundTasks -->|Executes| Agent
+    Agent -->|Calls| Decorator
+    Decorator -->|Wraps & intercept| Tools
+    Decorator -.->|Enqueues tool_start / tool_complete| StreamRouter
+    Agent -.->|Yields token / done| StreamRouter
+    StreamRouter -->|Serializes JSON| API
+
+    %% Persistence
+    API <-->|Read/Write history| SessionsDir
+    API <-->|Read generated files| DataDir
+    Tools -->|Writes outputs| DataDir
+```

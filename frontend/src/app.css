@@ -1,0 +1,620 @@
+/* Design Tokens & Theme Variables */
+:root {
+  --bg-primary: #0a0b0e;
+  --bg-secondary: #13151a;
+  --bg-tertiary: #1b1d24;
+  --bg-card: rgba(27, 29, 36, 0.6);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-color-hover: rgba(255, 255, 255, 0.15);
+
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+
+  --primary: #4f46e5;
+  --primary-hover: #6366f1;
+  --primary-glow: rgba(79, 70, 229, 0.15);
+
+  --success: #10b981;
+  --success-bg: rgba(16, 185, 129, 0.1);
+  --error: #ef4444;
+  --error-bg: rgba(239, 68, 68, 0.1);
+  --warning: #f59e0b;
+  --warning-bg: rgba(245, 158, 11, 0.1);
+
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "Outfit", "Fira Code", monospace;
+
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+}
+
+/* Global Reset & Base Setup */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar Customization */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color-hover);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Layout Utilities */
+.flex {
+  display: flex;
+}
+.flex-column {
+  flex-direction: column;
+}
+.flex-grow {
+  flex-grow: 1;
+}
+.align-items-center {
+  align-items: center;
+}
+.justify-content-center {
+  justify-content: center;
+}
+.justify-content-between {
+  justify-content: space-between;
+}
+.gap-1 {
+  gap: 0.25rem;
+}
+.gap-2 {
+  gap: 0.5rem;
+}
+.w-full {
+  width: 100%;
+}
+.w-screen {
+  width: 100vw;
+}
+.h-full {
+  height: 100%;
+}
+.h-screen {
+  height: 100vh;
+}
+.overflow-hidden {
+  overflow: hidden;
+}
+.overflow-y-auto {
+  overflow-y: auto;
+}
+.pointer {
+  cursor: pointer;
+}
+.border-left {
+  border-left: 1px solid var(--border-color);
+}
+.border-right {
+  border-right: 1px solid var(--border-color);
+}
+.border-top {
+  border-top: 1px solid var(--border-color);
+}
+.border-bottom {
+  border-bottom: 1px solid var(--border-color);
+}
+.border-radius-sm {
+  border-radius: 6px;
+}
+.border-radius-xs {
+  border-radius: 4px;
+}
+.list-none {
+  list-style: none;
+}
+.p-0 {
+  padding: 0;
+}
+.p-2 {
+  padding: 0.5rem;
+}
+.p-3 {
+  padding: 0.75rem;
+}
+.p-4 {
+  padding: 1rem;
+}
+.m-0 {
+  margin: 0;
+}
+.mb-1 {
+  margin-bottom: 0.25rem;
+}
+.mb-2 {
+  margin-bottom: 0.5rem;
+}
+.mb-3 {
+  margin-bottom: 0.75rem;
+}
+.ml-2 {
+  margin-left: 0.5rem;
+}
+.text-center {
+  text-align: center;
+}
+.text-sm {
+  font-size: 0.85rem;
+}
+.text-xs {
+  font-size: 0.75rem;
+}
+.font-mono {
+  font-family: var(--font-mono);
+}
+.font-bold {
+  font-weight: 600;
+}
+.text-muted {
+  color: var(--text-muted);
+}
+.text-secondary {
+  color: var(--text-secondary);
+}
+.text-success {
+  color: var(--success);
+}
+.text-error {
+  color: var(--error);
+}
+.whitespace-nowrap {
+  white-space: nowrap;
+}
+
+.text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Glassmorphism Cards */
+.glass-panel {
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--border-color);
+}
+
+/* Sidebar Component Styles */
+.sidebar {
+  width: 260px;
+  background-color: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  padding: 1.25rem 1rem;
+  gap: 1.25rem;
+}
+
+.sidebar-brand {
+  padding-bottom: 0.5rem;
+}
+.brand-icon {
+  color: var(--primary-hover);
+  filter: drop-shadow(0 0 8px var(--primary-hover));
+}
+.brand-title {
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: -0.025em;
+  background: linear-gradient(
+    to right,
+    var(--text-primary),
+    var(--text-secondary)
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.new-chat-btn {
+  background-color: var(--primary);
+  color: var(--text-primary);
+  border: none;
+  padding: 0.6rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+.new-chat-btn:hover {
+  background-color: var(--primary-hover);
+  box-shadow: 0 0 12px var(--primary-glow);
+}
+
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+}
+.section-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.config-select {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  padding: 0.5rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  outline: none;
+  cursor: pointer;
+}
+.config-select:focus {
+  border-color: var(--primary-hover);
+}
+
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.session-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: 1px solid transparent;
+  gap: 0.5rem;
+}
+.session-item:hover {
+  background-color: var(--bg-tertiary);
+  border-color: var(--border-color);
+}
+.session-item.active {
+  background-color: var(--bg-tertiary);
+  border-color: var(--primary-hover);
+}
+.session-info {
+  min-width: 0; /* allows text truncation inside flex item */
+}
+.session-title {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.session-meta {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 0.2rem;
+}
+.delete-session-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: all var(--transition-fast);
+  border-radius: 4px;
+}
+.session-item:hover .delete-session-btn {
+  opacity: 1;
+}
+.delete-session-btn:hover {
+  color: var(--error);
+  background-color: var(--error-bg);
+}
+
+/* Main Dashboard Panel Layout */
+.main-content {
+  background-color: var(--bg-primary);
+}
+
+.info-sidebar {
+  width: 360px;
+  background-color: var(--bg-secondary);
+}
+.trace-section {
+  height: 60%;
+}
+.files-section {
+  height: 40%;
+}
+
+/* Panel Common Styles */
+.panel-header {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+}
+.panel-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.panel-icon {
+  color: var(--text-secondary);
+}
+
+/* ChatPanel Specific Styles */
+.chat-panel {
+  background-color: var(--bg-primary);
+}
+
+.chat-messages {
+  background: radial-gradient(
+    circle at top left,
+    rgba(79, 70, 229, 0.03),
+    transparent 40%
+  );
+}
+
+.message-wrapper {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  max-width: 85%;
+}
+.message-wrapper.user {
+  margin-left: auto;
+  flex-direction: row-reverse;
+}
+.message-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.message-wrapper.assistant .message-avatar {
+  background-color: var(--primary-glow);
+  color: var(--primary-hover);
+  border-color: rgba(79, 70, 229, 0.3);
+}
+
+.message-bubble {
+  gap: 0.2rem;
+}
+.message-sender {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.message-wrapper.user .message-sender {
+  text-align: right;
+}
+
+.message-text {
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+.message-wrapper.user .message-text {
+  background-color: var(--primary);
+  border-top-right-radius: 2px;
+}
+.message-wrapper.assistant .message-text {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-top-left-radius: 2px;
+}
+
+/* Markdown Text formatting inside Chat bubbles */
+.message-text p {
+  margin-bottom: 0.5rem;
+}
+.message-text p:last-child {
+  margin-bottom: 0;
+}
+.message-text pre {
+  background-color: var(--bg-tertiary) !important;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin: 0.5rem 0;
+  overflow-x: auto;
+}
+.message-text code {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  background-color: rgba(255, 255, 255, 0.05);
+  padding: 0.1rem 0.25rem;
+  border-radius: 3px;
+}
+.message-text pre code {
+  background-color: transparent;
+  padding: 0;
+}
+.message-text a {
+  color: var(--primary-hover);
+  text-decoration: none;
+}
+.message-text a:hover {
+  text-decoration: underline;
+}
+
+.streaming-cursor {
+  animation: pulse 1s infinite;
+  color: var(--primary-hover);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.chat-input-container {
+  background-color: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+}
+.chat-input {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.9rem;
+  outline: none;
+}
+.chat-input:focus {
+  border-color: var(--primary-hover);
+}
+.chat-input:disabled {
+  opacity: 0.6;
+}
+
+.send-btn {
+  background-color: var(--primary);
+  color: var(--text-primary);
+  border: none;
+  border-radius: 8px;
+  width: 38px;
+  height: 38px;
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+.send-btn:hover:not(:disabled) {
+  background-color: var(--primary-hover);
+}
+.send-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.stop-btn {
+  background-color: var(--error-bg);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--error);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.stop-btn:hover {
+  background-color: var(--error);
+  color: var(--text-primary);
+}
+
+/* TracePanel Specific Styles */
+.trace-panel {
+  background-color: var(--bg-secondary);
+}
+.trace-item {
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-card);
+  transition: border-color var(--transition-fast);
+}
+.trace-item:hover {
+  border-color: var(--border-color-hover);
+}
+.trace-item.running {
+  border-color: rgba(79, 70, 229, 0.4);
+}
+.trace-item.completed {
+  border-color: rgba(16, 185, 129, 0.3);
+}
+.trace-item.error {
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.tool-status {
+  font-weight: 700;
+}
+.running .tool-status {
+  color: var(--primary-hover);
+}
+.completed .tool-status {
+  color: var(--success);
+}
+.error .tool-status {
+  color: var(--error);
+}
+
+.spinning {
+  animation: spin 1.5s linear infinite;
+}
+@keyframes spin {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.trace-item-details {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+.bg-code {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+}
+.bg-code-error {
+  background-color: var(--error-bg);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: var(--error);
+}
+
+/* FileBrowser Specific Styles */
+.file-browser {
+  background-color: var(--bg-secondary);
+}
+.refresh-btn {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+}
+.refresh-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+.file-item {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  transition: all var(--transition-fast);
+}
+.file-item:hover {
+  border-color: var(--border-color-hover);
+  background-color: var(--bg-tertiary);
+}
+
+/* Welcome Area */
+.welcome-logo {
+  color: var(--primary-hover);
+  filter: drop-shadow(0 0 16px var(--primary-hover));
+}
+.welcome-logo + h2 {
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+}
+.max-w-sm {
+  max-width: 320px;
+}

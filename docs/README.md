@@ -8,6 +8,8 @@ The documentation is organized into the following sections:
 
 - **[README.md](README.md)** (this file): Introduction and documentation roadmap.
 - **[components.md](components.md)**: Detailed breakdown of the repository's modules, including agent SDK abstractions, backend wrappers, observability frameworks, and validation gates.
+- **[frontend.md](frontend.md)**: Breakdown of frontend UI components, styling hooks, and state management specifications.
+- **[environment_management.md](environment_management.md)**: Detailed runtime configurations, packages, API environment parameters, and container networking patterns for backend and frontend.
 - **[diagrams.md](diagrams.md)**: Graphical representations of the system, including:
   - **High-Level System Architecture**: Shows relationships and boundaries between the five core layers.
   - **Runtime Execution Flow**: Traces an agent invocation, tool resolution, and telemetry spans from query to response.

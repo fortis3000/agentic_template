@@ -1,9 +1,12 @@
 services:
-  agent-app:
+  agent-api:
     build:
       context: .
       dockerfile: docker/Dockerfile
     image: agentic-template:latest
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
     volumes:
       - .:/app
       - /app/.venv
@@ -19,11 +22,23 @@ services:
     stdin_open: true
     tty: true
 
+  agent-ui:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - agent-api
+
   phoenix:
     image: arizephoenix/phoenix:latest
     ports:
-      - "6060:6006" # Phoenix UI / OTLP HTTP endpoint
-      - "4317:4317" # OTLP gRPC endpoint
+      - "6060:6006"  # Phoenix UI / OTLP HTTP endpoint
+      - "4317:4317"  # OTLP gRPC endpoint
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:6006/healthz')"]
       interval: 5s
