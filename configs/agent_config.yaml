@@ -8,6 +8,9 @@ agent:
   streaming: false
   tools:
     - "get_weather"
+    - "read_google_sheet"
+    - "write_google_sheet"
+    - "add_vocab_entry"
   mcp_servers:
     filesystem:
       type: "stdio"

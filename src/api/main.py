@@ -15,6 +15,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
 
 from src.agents.pydantic_ai import PydanticAIAgentGenerator
+from src.tools.base import ToolFactory
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -398,10 +399,21 @@ async def run_agent_in_background(
 
         # Initialize the generator and agent
         generator = PydanticAIAgentGenerator(prompt_base_dir="src/prompts")
+
+        # Load and wrap dynamic tools using ToolFactory
+        tools_config_path = str(WORKSPACE_ROOT / "configs" / "tools_config.yaml")
+        dynamic_tools = ToolFactory.load_from_yaml(tools_config_path)
+        wrapped_dynamic_tools = {
+            name: make_stream_tool(func) for name, func in dynamic_tools.items()
+        }
+
+        # Merge them into a copy of STREAM_TOOLS_REGISTRY
+        merged_registry = {**STREAM_TOOLS_REGISTRY, **wrapped_dynamic_tools}
+
         agent = generator.create_agent(
             config_path,
             system_variables=system_variables,
-            tools_registry=STREAM_TOOLS_REGISTRY,
+            tools_registry=merged_registry,
         )
 
         chunks = []
