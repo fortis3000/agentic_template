@@ -3,76 +3,71 @@ name: python-coder
 description: Software development workflow for Python agents/tools utilizing Git worktrees, Docker sandboxed execution, and SSDLC security practices.
 ---
 
-# Python Coder Workflow Guide
+# Python Developer Lifecycle Guide
 
-**Objective:** Standardize the development process for Python agents, tools, and scripts using Git worktrees for workspace isolation, Docker containers for secure sandboxed execution, and SSDLC principles for high code quality, typing compliance, and security checks.
+**Objective:** Standardize the development process for Python agents, tools, and scripts using Git worktrees for workspace isolation, Docker containers for secure sandboxed execution, and SSDLC principles for high code quality, typing compliance, security checks, and PR preparation.
+
+This workflow is structured into four distinct phases:
+1. **Phase 1**: Setup & Environment Isolation
+2. **Phase 2**: Code Implementation (Delegated to `/implement`)
+3. **Phase 3**: Validation & PR Preparation
+4. **Phase 4**: Submission & Cleanup
 
 ---
 
-## Step-by-Step Developer Lifecycle
+## Phase 1: Setup & Environment Isolation
+
+Before editing any code, always isolate your working directory to avoid contaminating the main branch:
 
 ### 1. Worktree Isolation
-
-To isolate your development environment and avoid contaminating the `master` branch:
-
 * **Automated Script (Recommended):**
   From the repository root, run the start script providing the issue number and optional branch name:
-
   ```bash
   bash .agents/skills/gh-cli/scripts/start_issue.sh <issue_number> [optional_branch_name]
   ```
-
 * **Manual Command Fallback:**
-
   ```bash
   git worktree add -b <branch-name> .worktrees/<branch-name> origin/master
   ```
-
 * **Navigate to Worktree:**
-
   ```bash
   cd .worktrees/<branch-name>
   ```
-
   *Note: Perform all subsequent edits, tests, and checks inside this worktree directory.*
 
----
-
-### 2. Local Environment Synchronization
-
+### 2. Environment Synchronization
 Always synchronize the Python environment to obtain correct dependencies:
-
 ```bash
 uv sync --extra all
 ```
 
 ---
 
-### 3. Implementation & Secure Coding Guidelines
+## Phase 2: Code Implementation (Delegated to `/implement`)
 
-Ensure compliance with SSDLC and code quality standards:
-
-* **Static Typing**: Annotate variables and functions. Avoid using `Any`.
-* **Zero Hardcoded Secrets**:
-  * Never hardcode API keys, passwords, or tokens in source files.
-  * Read configuration properties from environment variables or secure credential managers.
-  * Never commit `.env` files or log raw token credentials.
-* **Documentation**:
-  * Keep documentation updated. Create or modify files under the `docs/` folder (such as `docs/README.md`, `docs/components.md`, `docs/diagrams.md`).
-  * Use relative path links within codebase markdown documents so they remain portable.
-* **Testing**:
-  * Write test cases alongside code modifications.
-  * Save tests under the `tests/` directory (e.g. using `pytest`).
+All actual coding, bug fixing, or feature implementations should be executed using the `/implement` skill:
+* **Invoke Implement**: Use the `implement` skill to execute code changes.
+* **Test-Driven Development**: Where possible, use `/tdd` at pre-agreed seams.
+* **Codebase Glossary**: Respect the domain-modeling glossary, naming conventions, and ADRs.
+* **Type Annotations**: Always use static typing. Avoid introducing `Any`.
 
 ---
 
-### 4. Running Validation Checks
+## Phase 3: Validation & PR Preparation
 
-Before committing, run tests, linters, and security checks:
+Once the implementation is complete, perform a thorough cleanup and run validation suites before committing or proposing a PR:
 
+### 1. Code Cleanup Checklist
+Review modified files (`git status` or `git diff`) and ensure you:
+* **Remove Debug Artifacts**: Remove all `print()` statements, `breakpoint()`, or `import pdb` traces. Use the project's standard logger (`src/utils/logger.py`) if logging is needed.
+* **Remove Commented-out Code**: Ensure there are no leftover commented-out code blocks.
+* **Address Temporary Fixes**: Resolve temporary hacks and lingering `# TODO` comments that should be resolved in this PR.
+* **Verify Documentation**: Update relevant documentation under the `docs/` folder or in `README.md` to reflect changes. Use relative paths for markdown links.
+
+### 2. Pre-Commit Validation Checks
+Run tests, linters, and security checks:
 * **Docker-Sandboxed Validation (Recommended):**
   Ensures isolation from the host environment:
-
   ```bash
   # Build the container
   docker build -f docker/Dockerfile -t agentic-template:latest .
@@ -86,82 +81,57 @@ Before committing, run tests, linters, and security checks:
     uv run pre-commit run --all-files
   "
   ```
-
 * **Local Fallback:**
   If Docker is not running or available:
-
   ```bash
   uv run pre-commit run --all-files
   ```
 
 ---
 
-### 5. Git Commit & Semantic Message Standard
+## Phase 4: Submission & Cleanup
 
-Stage your files and commit them using the Conventional Commit convention:
+After verifying that all checks pass successfully:
 
+### 1. Semantic Commits
+Stage files and commit them using the Conventional Commit convention:
 * **Format:** `<type>(<scope>)?(!)?: <description>`
 * **Allowed Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
 * **Command:**
-
   ```bash
   git add -A
   git commit -m "feat(sdk): implement new backend wrapper and add unit tests"
   ```
 
----
-
-### 6. Pushing & Authenticating with GitHub
-
-Before running any `gh` CLI commands, retrieve the GitHub PAT from your environment or credentials file:
-
+### 2. Pushing & GitHub Authentication
+Always export the GitHub PAT from `.env` first before running `gh` commands, as `gh` prefers environment tokens over keychain credentials:
 ```bash
-# Locate and export the GitHub token
-export GITHUB_TOKEN=$(grep '^GITHUB_TOKEN=' .env | cut -d= -f2- | xargs)
-
-# If in a worktree and .env is in the project root:
+# Locate and export the GitHub token (adjust path if running in a worktree)
 export GITHUB_TOKEN=$(grep '^GITHUB_TOKEN=' ../../.env | cut -d= -f2- | xargs)
 
 # Push the branch to origin
 git push -u origin HEAD
 ```
-
-**Always export `GITHUB_TOKEN` from `.env` first.** `gh` prefers the `GITHUB_TOKEN`/`GH_TOKEN`
-env var over its keyring credential. The keyring token often lacks access to this private repo
-and fails with `Could not resolve to a Repository` — the `.env` token is the one with access.
-
-**Avoid the default `gh issue view` / `gh pr view` TUI commands.** They query a `projectItems`
-field, and the fine-grained PAT lacks the *Projects* permission, so the whole command aborts with
-`Resource not accessible by personal access token (…projectItems…)`. Request explicit fields instead:
-
+*Note: Avoid the default `gh issue view` or `gh pr view` TUI commands, as they can cause token permission errors. Request explicit fields instead:*
 ```bash
 gh issue view <n> --json number,title,body,state,labels
 gh pr view <n>   --json number,title,body,state,headRefOid,url
 ```
 
-(To fix this at the source rather than working around it, grant the PAT **Projects: Read-only**
-for this repo.)
-
----
-
-### 7. Pull Request Submission & Template Validation
-
-Every pull request must follow the structure in `.github/pull_request_template.md`.
-
+### 3. Creating the Pull Request
+Every pull request must follow the structure in `.github/pull_request_template.md`:
 * **Automated Submission (Recommended):**
-  The script automatically runs Docker validations, commits your staged changes semantically, pushes them, and creates a draft PR:
-
+  This script runs validations, commits semantically, pushes, and creates a draft PR:
   ```bash
   bash .agents/skills/gh-cli/scripts/submit_pr.sh <type> [scope] <description>
   ```
-
 * **Manual PR Creation with Template:**
-  1. Create a temporary file containing the PR template:
+  1. Copy and fill the template:
      ```bash
      cp .github/pull_request_template.md temp_pr_body.md
-     # (Edit temp_pr_body.md to complete all sections and replace [Answer here] placeholders)
+     # (Edit temp_pr_body.md, replacing all [Answer here] placeholders)
      ```
-  2. Create the Pull Request using the body file:
+  2. Create draft PR:
      ```bash
      gh pr create --body-file temp_pr_body.md --draft
      ```
@@ -169,26 +139,15 @@ Every pull request must follow the structure in `.github/pull_request_template.m
      ```bash
      rm temp_pr_body.md
      ```
+  *Note: Make sure to keep the template's guiding questions in plain text inside the final PR description.*
 
-* **PR Template Guidelines:**
-  * Complete all required sections: **Summary**, **Key Changes**, **Discussion & Pitfalls**, and **Verification**.
-  * Keep the guiding template questions in plain text inside the PR description; **do not delete them**.
-  * Fully replace the `[Answer here]` placeholders with detailed verification, testing output, and rationale.
-
----
-
-### 8. Cleanup
-
-After the pull request has been merged or closed, prune the worktree to clean up the local environment:
-
+### 4. Worktree Cleanup
+After the pull request is merged or closed, clean up the local branch and worktree:
 1. Return to the project root:
-
    ```bash
    cd ../..
    ```
-
 2. Remove the worktree and delete the local task branch:
-
    ```bash
    git worktree remove .worktrees/<branch-name>
    git branch -d <branch-name>
