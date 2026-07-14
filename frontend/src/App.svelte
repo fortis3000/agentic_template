@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { AgentController } from "./lib/agent.svelte";
+  import { AgentController } from "./lib/agent.svelte.ts";
   import Sidebar from "./lib/Sidebar.svelte";
   import ChatPanel from "./lib/ChatPanel.svelte";
   import TracePanel from "./lib/TracePanel.svelte";
