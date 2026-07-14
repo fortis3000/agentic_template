@@ -7,6 +7,7 @@ from pydantic_ai.models.test import TestModel
 from src.agents.base import AgentInputPart, ImagePart, TextPart
 from src.agents.prompt_manager import PromptManager
 from src.agents.pydantic_ai import PydanticAIAgent, PydanticAIAgentGenerator
+from src.tools.base import BaseTool, ToolFactory
 
 
 def test_prompt_manager_inline():
@@ -209,3 +210,66 @@ agent:
     assert agent.agent.model.__class__.__name__ == "OllamaModel"
     assert hasattr(agent.agent.model, "model_name")
     assert getattr(agent.agent.model, "model_name") == "llama3"
+
+
+def test_agent_tools_factory_loading(tmp_path):
+    """Test loading tools dynamically from a YAML file in PydanticAIAgentGenerator."""
+    expected_result = 15
+
+    # 1. Register a test tool
+    @ToolFactory.register("pydantic_test_tool")
+    class PydanticTestTool(BaseTool):
+        def __init__(self, multiplier: int):
+            self.multiplier = multiplier
+
+        def get_callable(self):
+            def multiply_by_n(val: int) -> int:
+                """Multiplies a value by n."""
+                return val * self.multiplier
+
+            return multiply_by_n
+
+    # 2. Create tools YAML configuration
+    tools_config = tmp_path / "tools_config.yaml"
+    tools_config.write_text(
+        """
+tools:
+  my_test_tool:
+    type: "pydantic_test_tool"
+    config:
+      multiplier: 3
+""",
+        encoding="utf-8",
+    )
+
+    # 3. Create agent configuration
+    agent_config = tmp_path / "agent_config.yaml"
+    agent_config.write_text(
+        """
+agent:
+  name: "test_tools_agent"
+  model: "gemini-2.5-flash"
+  provider: "google"
+  tools:
+    - "my_test_tool"
+""",
+        encoding="utf-8",
+    )
+
+    # 4. Generate agent using tools_config_path
+    generator = PydanticAIAgentGenerator(prompt_base_dir=tmp_path)
+    agent = cast(
+        PydanticAIAgent,
+        generator.create_agent(
+            str(agent_config),
+            tools_config_path=str(tools_config),
+        ),
+    )
+
+    # 5. Verify the tool is registered and executes correctly
+    assert len(agent.agent._function_toolset.tools) == 1
+    tool_func = agent.agent._function_toolset.tools["multiply_by_n"].function
+    if hasattr(tool_func, "__wrapped__"):
+        tool_func = tool_func.__wrapped__
+    assert callable(tool_func)
+    assert cast(Any, tool_func)(5) == expected_result

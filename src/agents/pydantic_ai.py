@@ -22,6 +22,7 @@ from src.agents.base import AgentInputPart, BaseAgent, BaseAgentGenerator, Image
 from src.agents.config import AgentConfigSchema, AgentYamlConfig
 from src.agents.google_antigravity import trace_tool
 from src.agents.prompt_manager import PromptManager
+from src.tools.base import ToolFactory
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -241,6 +242,7 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
         config_path: str,
         system_variables: dict[str, Any] | None = None,
         tools_registry: dict[str, Callable[..., Any]] | None = None,
+        tools_config_path: str | None = None,
         **kwargs: Any,
     ) -> BaseAgent:
         """Create and configure a PydanticAIAgent from a configuration file.
@@ -249,6 +251,7 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
             config_path: Path to the YAML configuration file.
             system_variables: Optional variables to format the system prompt template.
             tools_registry: Optional mapping of tool names to Python callables.
+            tools_config_path: Optional path to a YAML file to load tools via ToolFactory.
             **kwargs: Extra parameters to override configuration fields dynamically.
 
         Returns:
@@ -278,6 +281,9 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
         # 4. Resolve Tools
         tools = []
         tools_registry = tools_registry or {}
+        if tools_config_path:
+            tools_registry.update(ToolFactory.load_from_yaml(tools_config_path))
+
         for tool_name in agent_data.tools:
             if tool_name in tools_registry:
                 tools.append(trace_tool(tools_registry[tool_name]))
