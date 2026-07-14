@@ -1,7 +1,7 @@
 agent:
   name: "demo_agent"
-  model: "gemini-2.5-flash"
-  provider: "google"
+  model: "gemma4:12b"
+  provider: "ollama"
   system_prompt_path: "src/prompts/system_prompt.txt"
   user_prompt_path: "src/prompts/user_prompt.txt"
   app_data_dir: "data"
