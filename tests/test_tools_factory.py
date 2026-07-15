@@ -5,12 +5,12 @@ from src.tools.base import BaseTool, ToolFactory
 EXPECTED_VALUE = 42
 
 
-# Clear registry before tests
 @pytest.fixture(autouse=True)
 def clear_registry():
+    saved = dict(ToolFactory._registry)
     ToolFactory._registry = {}
     yield
-    ToolFactory._registry = {}
+    ToolFactory._registry = saved
 
 
 def test_tool_registration_and_creation():

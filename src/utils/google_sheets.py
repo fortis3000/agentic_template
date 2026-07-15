@@ -6,8 +6,102 @@ from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+
+class VocabEntry(BaseModel):
+    """Pydantic model representing a vocabulary entry in the Google Sheet."""
+
+    w: str = Field(description="Unique ID based on the word and date (YYMMDD)")
+    Target_German: str = Field(description="The German word or phrase")
+    Gender: str = Field(description="Grammatical gender (der/die/das or empty)")
+    Native_Translation: str = Field(description="The translation in English")
+    Hint_Disambiguation: str = Field(default="")
+    Theme_Context: str = Field(default="")
+    Example_Sentence: str = Field(default="")
+    Collocations: str = Field(default="")
+    Antonym: str = Field(default="")
+    Media: str = Field(default="")
+    Tags: str = Field(default="")
+
+    def to_row(self) -> List[str]:
+        """Converts entry fields to list of strings matching column order."""
+        return [
+            self.w,
+            self.Target_German,
+            self.Gender,
+            self.Native_Translation,
+            self.Hint_Disambiguation,
+            self.Theme_Context,
+            self.Example_Sentence,
+            self.Collocations,
+            self.Antonym,
+            self.Media,
+            self.Tags,
+        ]
+
+
+class SheetDisplayer:
+    """Structure to format and display Google Sheet contents."""
+
+    @staticmethod
+    def display_vocab_entries(raw_rows: List[List[Any]]) -> str:
+        """Parses raw sheet rows, validates using VocabEntry, and formats as a Markdown table."""
+        if not raw_rows:
+            return "No data found."
+
+        headers = [
+            "w",
+            "Target_German",
+            "Gender",
+            "Native_Translation",
+            "Hint_Disambiguation",
+            "Theme_Context",
+            "Example_Sentence",
+            "Collocations",
+            "Antonym",
+            "Media",
+            "Tags",
+        ]
+
+        start_idx = 0
+        if raw_rows and raw_rows[0] and raw_rows[0][0] == "w":
+            start_idx = 1
+
+        entries = []
+        for row in raw_rows[start_idx:]:
+            # Pad row to match 11 columns
+            padded_row = row + [""] * (len(headers) - len(row))
+            try:
+                # Validate with Pydantic
+                entry = VocabEntry(
+                    w=padded_row[0],
+                    Target_German=padded_row[1],
+                    Gender=padded_row[2],
+                    Native_Translation=padded_row[3],
+                    Hint_Disambiguation=padded_row[4],
+                    Theme_Context=padded_row[5],
+                    Example_Sentence=padded_row[6],
+                    Collocations=padded_row[7],
+                    Antonym=padded_row[8],
+                    Media=padded_row[9],
+                    Tags=padded_row[10],
+                )
+                entries.append(entry)
+            except Exception as e:
+                logger.warning(f"Skipped invalid row {row}: {e}")
+
+        # Construct Markdown Table
+        lines = []
+        lines.append("| " + " | ".join(headers) + " |")
+        lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
+        for entry in entries:
+            row_vals = [getattr(entry, h) for h in headers]
+            lines.append("| " + " | ".join(str(val) for val in row_vals) + " |")
+
+        return "\n".join(lines)
 
 
 class GoogleSheetsClient:
@@ -42,8 +136,8 @@ class GoogleSheetsClient:
                 self._creds, _ = google.auth.default(scopes=self.scopes)
 
         # Refresh credentials if expired
-        if self._creds and hasattr(self._creds, "expired") and self._creds.expired:
-            if hasattr(self._creds, "refresh") and self._creds.refresh_token:
+        if self._creds and getattr(self._creds, "expired", False):
+            if hasattr(self._creds, "refresh"):
                 self._creds.refresh(Request())
 
         return self._creds
@@ -224,4 +318,39 @@ class GoogleSheetsClient:
             return result
         except HttpError as error:
             logger.error(f"Failed batch write to spreadsheet '{spreadsheet_id}': {error}")
+            raise
+
+    def append_row(
+        self,
+        spreadsheet_id: str,
+        range_name: str,
+        values: List[List[Any]],
+        value_input_option: str = "USER_ENTERED",
+    ) -> Dict[str, Any]:
+        """Appends a row to the sheet, automatically finding the next empty row.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet.
+            range_name: A1 notation of the table/range to append to (e.g., 'A:K' or 'Sheet1!A:K').
+            values: A 2D list containing the row(s) to write.
+            value_input_option: 'USER_ENTERED' (parses values) or 'RAW'.
+        """
+        try:
+            body = {"values": values}
+            result = (
+                self.service.spreadsheets()
+                .values()
+                .append(
+                    spreadsheetId=spreadsheet_id,
+                    range=range_name,
+                    valueInputOption=value_input_option,
+                    body=body,
+                )
+                .execute()
+            )
+            return result
+        except HttpError as error:
+            logger.error(
+                f"Failed to append row to range '{range_name}' in spreadsheet '{spreadsheet_id}': {error}"
+            )
             raise
