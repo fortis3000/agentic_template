@@ -85,8 +85,11 @@ def test_google_sheet_add_vocab_entry_tool_success(mock_client_class):
 
     expected_row = [expected_id, "der Hund", "der", "dog", "[canine]", "", "", "", "", "", ""]
 
-    mock_client.append_row.return_value = {"updates": {"updatedRange": "Sheet1!A3:K3"}}
-    mock_client.read_range.return_value = [expected_row]
+    mock_client.read_range.side_effect = [
+        [["w"], ["vocab_hund_260714"]],  # 1st call: read A:A
+        [expected_row],  # 2nd call: verification read
+    ]
+    mock_client.write_range.return_value = {"updatedCells": 11}
 
     tool = GoogleSheetsAddVocabEntryTool(spreadsheet_id="test_id")
     add_callable = tool.get_callable()
@@ -108,8 +111,9 @@ def test_google_sheet_add_vocab_entry_tool_success(mock_client_class):
     assert result["written_entry"]["Hint_Disambiguation"] == "[canine]"
 
     # Verify append and read-back calls
-    mock_client.append_row.assert_called_once_with("test_id", "A:K", [expected_row])
-    mock_client.read_range.assert_called_once_with("test_id", "A3:K3")
+    mock_client.read_range.assert_any_call("test_id", "A:A")
+    mock_client.read_range.assert_any_call("test_id", "A3:K3")
+    mock_client.write_range.assert_called_once_with("test_id", "A3:K3", [expected_row])
 
 
 @patch("src.tools.google_sheet.write_german_words.GoogleSheetsClient")
@@ -121,8 +125,11 @@ def test_google_sheet_add_vocab_entry_tool_verification_failure(mock_client_clas
     expected_id = f"vocab_hund_{date_suffix}"
     expected_row = [expected_id, "der Hund", "der", "dog", "[canine]", "", "", "", "", "", ""]
 
-    mock_client.append_row.return_value = {"updates": {"updatedRange": "Sheet1!A3:K3"}}
-    mock_client.read_range.return_value = [[]]  # Empty read-back to trigger verification failure
+    mock_client.read_range.side_effect = [
+        [["w"], ["vocab_hund_260714"]],  # 1st call: read A:A
+        [[]],  # 2nd call: verification read (mismatch)
+    ]
+    mock_client.write_range.return_value = {"updatedCells": 11}
 
     tool = GoogleSheetsAddVocabEntryTool(spreadsheet_id="test_id")
     add_callable = tool.get_callable()

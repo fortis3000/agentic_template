@@ -1,5 +1,4 @@
 import logging
-import re
 from datetime import datetime
 from typing import Any, Callable, Dict, List
 
@@ -177,47 +176,42 @@ class GoogleSheetsAddVocabEntryTool(BaseTool):
                 Tags=tags,
             )
 
-            # 3. Append row (Zero-read approach)
-            new_row = entry.to_row()
+            # 3. Read existing rows to determine the next empty row (at the end of the table)
             try:
-                result = self.client.append_row(self.spreadsheet_id, "A:K", [new_row])
+                existing_ids = self.client.read_range(self.spreadsheet_id, "A:A")
             except Exception as e:
-                logger.error(f"Failed to append new entry: {e}")
+                logger.error(f"Failed to read column A: {e}")
+                raise ValueError(f"Failed to read existing rows: {e}")
+
+            next_row_num = len(existing_ids) + 1
+            write_range = f"A{next_row_num}:K{next_row_num}"
+            new_row = entry.to_row()
+
+            # 4. Write row to the end of the table
+            try:
+                result = self.client.write_range(self.spreadsheet_id, write_range, [new_row])
+            except Exception as e:
+                logger.error(f"Failed to write new entry: {e}")
                 raise ValueError(f"Failed to write new entry: {e}")
 
-            # 4. Parse row number from API response
-            updated_range = result.get("updates", {}).get("updatedRange", "")
-            match = re.search(r"A(\d+):", updated_range)
-            if match:
-                next_row_num = int(match.group(1))
-            else:
+            # 5. Verify post-write
+            try:
+                verification_row = self.client.read_range(self.spreadsheet_id, write_range)
+            except Exception as e:
+                logger.error(f"Failed to read back for verification: {e}")
+                raise ValueError(f"Post-write verification read failed: {e}")
+
+            if not verification_row or verification_row[0] != new_row:
                 logger.warning(
-                    f"Could not parse row number from updatedRange '{updated_range}'. Defaulting to -1."
+                    "Verification failed. Row did not match expected contents. Attempting rollback..."
                 )
-                next_row_num = -1
-
-            # 5. Verify post-write (if row number is parsed)
-            if next_row_num != -1:
-                write_range = f"A{next_row_num}:K{next_row_num}"
                 try:
-                    verification_row = self.client.read_range(self.spreadsheet_id, write_range)
-                except Exception as e:
-                    logger.error(f"Failed to read back for verification: {e}")
-                    raise ValueError(f"Post-write verification read failed: {e}")
-
-                if not verification_row or verification_row[0] != new_row:
-                    logger.warning(
-                        "Verification failed. Row did not match expected contents. Attempting rollback..."
-                    )
-                    try:
-                        self.client.write_range(
-                            self.spreadsheet_id, write_range, [[""] * len(new_row)]
-                        )
-                    except Exception as rollback_err:
-                        logger.critical(f"Rollback failed: {rollback_err}")
-                    raise ValueError(
-                        "Write verification failed: read-back row did not match written row."
-                    )
+                    self.client.write_range(self.spreadsheet_id, write_range, [[""] * len(new_row)])
+                except Exception as rollback_err:
+                    logger.critical(f"Rollback failed: {rollback_err}")
+                raise ValueError(
+                    "Write verification failed: read-back row did not match written row."
+                )
 
             return {
                 "success": True,
