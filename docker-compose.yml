@@ -14,6 +14,7 @@ services:
       - PHOENIX_CLIENT_HEADERS=api_key=${PHOENIX_API_KEY:-}
       - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:4317
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
     env_file:
       - .env
     depends_on:

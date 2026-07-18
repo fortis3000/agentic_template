@@ -20,6 +20,7 @@ from opentelemetry import trace
 
 from src.agents.base import AgentInputPart, BaseAgent, BaseAgentGenerator, ImagePart, TextPart
 from src.agents.prompt_manager import PromptManager
+from src.tools.base import ToolFactory
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -230,6 +231,7 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
         config_path: str,
         system_variables: dict[str, Any] | None = None,
         tools_registry: dict[str, Callable[..., Any]] | None = None,
+        tools_config_path: str | None = None,
         **kwargs: Any,
     ) -> BaseAgent:
         """Create and configure an AntigravityAgent from a configuration file.
@@ -238,6 +240,7 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
             config_path: Path to the YAML configuration file.
             system_variables: Optional variables to format the system prompt template.
             tools_registry: Optional mapping of tool names to Python callables.
+            tools_config_path: Optional path to a YAML file to load tools via ToolFactory.
             **kwargs: Extra parameters to override configuration fields dynamically.
 
         Returns:
@@ -266,6 +269,9 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
         # 2. Resolve Tools
         tools = []
         tools_registry = tools_registry or {}
+        if tools_config_path:
+            tools_registry.update(ToolFactory.load_from_yaml(tools_config_path))
+
         tool_names = agent_data.get("tools", [])
         for tool_name in tool_names:
             if tool_name in tools_registry:
