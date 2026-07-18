@@ -84,3 +84,13 @@ export GITHUB_TOKEN=$(grep '^GITHUB_TOKEN=' .env | cut -d= -f2- | xargs) && gh r
 
 - Update docs for every new functionality.
 - Update or add architectural diagrams for new code using Mermaid.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked using GitHub Issues via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Uses single-context domain documentation at the repo root. See `docs/agents/domain.md`.
