@@ -20,6 +20,7 @@ from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttribu
 from opentelemetry import trace
 
 from src.agents.base import AgentInputPart, BaseAgent, BaseAgentGenerator, ImagePart, TextPart
+from src.agents.config import AgentYamlConfig
 from src.agents.prompt_manager import PromptManager
 from src.tools.base import ToolFactory
 from src.utils.logger import get_logger
@@ -253,18 +254,18 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
         """
         self.prompt_base_dir = prompt_base_dir
 
-    def create_agent(
+    def create_agent(  # noqa: PLR0912
         self,
-        config_path: str,
+        config: str | AgentYamlConfig,
         system_variables: dict[str, Any] | None = None,
         tools_registry: dict[str, Callable[..., Any]] | None = None,
         tools_config_path: str | None = None,
         **kwargs: Any,
     ) -> BaseAgent:
-        """Create and configure an AntigravityAgent from a configuration file.
+        """Create and configure an AntigravityAgent from a configuration file or pre-loaded config.
 
         Args:
-            config_path: Path to the YAML configuration file.
+            config: Path to the YAML configuration file or pre-loaded AgentYamlConfig.
             system_variables: Optional variables to format the system prompt template.
             tools_registry: Optional mapping of tool names to Python callables.
             tools_config_path: Optional path to a YAML file to load tools via ToolFactory.
@@ -273,11 +274,13 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
         Returns:
             An instance of AntigravityAgent.
         """
-        # Load and parse YAML config
-        with open(config_path, encoding="utf-8") as f:
-            config_data = yaml.safe_load(f)
-
-        agent_data = config_data.get("agent", {})
+        if isinstance(config, str):
+            # Load and parse YAML config
+            with open(config, encoding="utf-8") as f:
+                config_data = yaml.safe_load(f)
+            agent_data = config_data.get("agent", {})
+        else:
+            agent_data = config.agent.model_dump()
         prompt_manager = PromptManager(base_dir=self.prompt_base_dir)
 
         # 1. Resolve System instructions
@@ -339,7 +342,7 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
         api_key = kwargs.get("api_key") or agent_data.get("api_key")
 
         # Build LocalAgentConfig
-        config = LocalAgentConfig(
+        local_config = LocalAgentConfig(
             system_instructions=system_prompt,
             tools=tools or None,
             mcp_servers=mcp_servers or None,
@@ -354,7 +357,7 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
         default_user_prompt_format = agent_data.get("user_prompt_format", "f-string")
 
         return AntigravityAgent(
-            config=config,
+            config=local_config,
             prompt_manager=prompt_manager,
             default_user_prompt_source=default_user_prompt_source,
             default_user_prompt_format=default_user_prompt_format,

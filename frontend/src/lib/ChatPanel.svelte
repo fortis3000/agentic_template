@@ -15,7 +15,7 @@
 
   let fileInput = $state<HTMLInputElement | null>(null);
   let attachedImages = $state<
-    { data: string; mime_type: string; name: string }[]
+    { data: string; mime_type: string; name: string; willResize?: boolean }[]
   >([]);
   let errorMessage = $state("");
 
@@ -42,46 +42,75 @@
   function handleFileChange(e: Event) {
     errorMessage = "";
     const files = (e.target as HTMLInputElement).files;
-    if (!files) return;
+    if (!files || files.length === 0) return;
 
     const acceptableTypes = controller.activeConfigDetails
       ?.acceptable_data_types || ["image/png", "image/jpeg", "image/gif"];
     const minWidth = controller.activeConfigDetails?.min_image_width || 128;
     const minHeight = controller.activeConfigDetails?.min_image_height || 128;
+    const maxWidth = controller.activeConfigDetails?.max_image_width || 1024;
+    const maxHeight = controller.activeConfigDetails?.max_image_height || 1024;
 
-    Array.from(files).forEach((file) => {
-      // 1. Validate mime type
-      if (!acceptableTypes.includes(file.type)) {
-        errorMessage = `Unsupported image format: ${file.type}. Allowed formats: ${acceptableTypes.join(", ")}`;
-        return;
-      }
+    const filesArray = Array.from(files);
 
-      // 2. Read file to validate dimensions
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const dataUrl = event.target?.result as string;
-        const img = new Image();
-        img.onload = () => {
-          if (img.width < minWidth || img.height < minHeight) {
-            errorMessage = `Image resolution ${img.width}x${img.height} is below the minimum allowed limit of ${minWidth}x${minHeight}.`;
-          } else {
-            // Check if already attached
-            if (
-              !attachedImages.some((existing) => existing.name === file.name)
-            ) {
-              attachedImages = [
-                ...attachedImages,
-                { data: dataUrl, mime_type: file.type, name: file.name },
-              ];
+    const validationPromises = filesArray.map((file) => {
+      return new Promise<
+        | { data: string; mime_type: string; name: string; willResize: boolean }
+        | string
+      >((resolve) => {
+        if (!acceptableTypes.includes(file.type)) {
+          resolve(
+            `Unsupported image format: ${file.type}. Allowed formats: ${acceptableTypes.join(", ")}`,
+          );
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const dataUrl = event.target?.result as string;
+          const img = new Image();
+          img.onload = () => {
+            if (img.width < minWidth || img.height < minHeight) {
+              resolve(
+                `Image resolution ${img.width}x${img.height} for "${file.name}" is below the minimum allowed limit of ${minWidth}x${minHeight}.`,
+              );
+            } else {
+              const willResize = img.width > maxWidth || img.height > maxHeight;
+              resolve({
+                data: dataUrl,
+                mime_type: file.type,
+                name: file.name,
+                willResize,
+              });
             }
-          }
+          };
+          img.src = dataUrl;
         };
-        img.src = dataUrl;
-      };
-      reader.readAsDataURL(file);
+        reader.readAsDataURL(file);
+      });
     });
 
-    // Reset file input value so same file can be selected again
+    Promise.all(validationPromises).then((results) => {
+      const errorResult = results.find((r) => typeof r === "string");
+      if (errorResult) {
+        errorMessage = errorResult as string;
+      } else {
+        const validImages = results as {
+          data: string;
+          mime_type: string;
+          name: string;
+          willResize: boolean;
+        }[];
+        const newImages = [...attachedImages];
+        validImages.forEach((img) => {
+          if (!newImages.some((existing) => existing.name === img.name)) {
+            newImages.push(img);
+          }
+        });
+        attachedImages = newImages;
+      }
+    });
+
     if (fileInput) fileInput.value = "";
   }
 
@@ -175,11 +204,36 @@
     </div>
   {/if}
 
+  {#if controller.streamInfoMessage}
+    <div
+      class="error-banner p-2 text-sm text-warning border-top flex align-items-center justify-content-between"
+      style="background-color: rgba(245, 158, 11, 0.1); color: #f59e0b; border-top: 1px solid rgba(245, 158, 11, 0.2);"
+    >
+      <span>{controller.streamInfoMessage}</span>
+      <button
+        type="button"
+        class="close-error-btn flex align-items-center"
+        style="color: #f59e0b;"
+        onclick={() => (controller.streamInfoMessage = null)}
+      >
+        <X size={14} />
+      </button>
+    </div>
+  {/if}
+
   {#if attachedImages.length > 0}
     <div class="attached-images-preview flex flex-wrap gap-2 p-2 border-top">
       {#each attachedImages as img, idx}
         <div class="preview-thumbnail-wrapper relative">
           <img src={img.data} alt={img.name} class="preview-thumbnail" />
+          {#if img.willResize}
+            <span
+              class="resize-badge absolute bottom-0 left-0"
+              title="Image exceeds max limits and will be auto-resized by the server"
+            >
+              Auto-resize
+            </span>
+          {/if}
           <button
             type="button"
             class="remove-img-btn absolute flex align-items-center justify-content-center"

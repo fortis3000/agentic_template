@@ -6,6 +6,16 @@ from src.agents.prompt_manager import PromptManager
 from src.utils.retry import RetryConfig
 
 
+class ImageConstraints(BaseModel):
+    acceptable_data_types: list[str] = Field(
+        default_factory=lambda: ["image/png", "image/jpeg", "image/gif"]
+    )
+    max_image_width: int = 1024
+    max_image_height: int = 1024
+    min_image_width: int = 128
+    min_image_height: int = 128
+
+
 class AgentConfigSchema(BaseModel):
     name: str
     model: str
@@ -30,6 +40,16 @@ class AgentConfigSchema(BaseModel):
     max_image_height: int = 1024
     min_image_width: int = 128
     min_image_height: int = 128
+
+    @property
+    def image_constraints(self) -> ImageConstraints:
+        return ImageConstraints(
+            acceptable_data_types=self.acceptable_data_types,
+            max_image_width=self.max_image_width,
+            max_image_height=self.max_image_height,
+            min_image_width=self.min_image_width,
+            min_image_height=self.min_image_height,
+        )
 
     @model_validator(mode="before")
     @classmethod

@@ -28,6 +28,14 @@ export interface WorkspaceFile {
   size: number;
 }
 
+export interface AgentConfigDetails {
+  acceptable_data_types: string[];
+  max_image_width: number;
+  max_image_height: number;
+  min_image_width: number;
+  min_image_height: number;
+}
+
 const API_BASE = "http://localhost:8000";
 
 export class AgentController {
@@ -40,7 +48,8 @@ export class AgentController {
   sessions = $state<Session[]>([]);
   files = $state<WorkspaceFile[]>([]);
   selectedConfig = $state<string>("configs/agent_config.yaml");
-  activeConfigDetails = $state<any>({
+  streamInfoMessage = $state<string | null>(null);
+  activeConfigDetails = $state<AgentConfigDetails | null>({
     acceptable_data_types: ["image/png", "image/jpeg", "image/gif"],
     max_image_width: 1024,
     max_image_height: 1024,
@@ -179,6 +188,7 @@ export class AgentController {
   ) {
     this.isGenerating = true;
     this.toolCalls = []; // reset tools
+    this.streamInfoMessage = null;
 
     // Add user message
     this.messages = [
@@ -271,6 +281,8 @@ export class AgentController {
                 // Re-assign to trigger Svelte reactivity
                 this.messages = [...this.messages];
               }
+            } else if (eventType === "info") {
+              this.streamInfoMessage = data.text;
             } else if (eventType === "tool_start") {
               const uniqueId = `${data.tool}-${Date.now()}`;
               this.toolCalls = [
@@ -301,9 +313,10 @@ export class AgentController {
                 this.messages = [...this.messages];
               }
             } else if (eventType === "error") {
+              const errMsg = data.error || data.text || "Unknown error";
               this.messages = [
                 ...this.messages,
-                { role: "assistant", content: `Error: ${data.text}` },
+                { role: "assistant", content: `Error: ${errMsg}` },
               ];
             } else if (eventType === "cancelled") {
               const lastIdx = this.messages.length - 1;
