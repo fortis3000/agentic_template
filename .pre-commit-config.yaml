@@ -61,13 +61,13 @@ repos:
         pass_filenames: false
       - id: frontend-lint
         name: Frontend Lint & Type Check (Svelte)
-        entry: npm --prefix frontend run lint
+        entry: bash -c "cd frontend && [ -d node_modules ] || npm install; npm run lint"
         language: system
         files: ^frontend/src/.*\.(js|ts|tsx|svelte)$
         pass_filenames: false
       - id: frontend-format
         name: Frontend Format (Prettier)
-        entry: npm --prefix frontend run format:check
+        entry: bash -c "cd frontend && [ -d node_modules ] || npm install; npm run format:check"
         language: system
         files: ^frontend/src/.*\.(js|ts|tsx|css|html|svelte)$
         pass_filenames: false
