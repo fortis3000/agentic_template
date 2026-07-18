@@ -167,3 +167,6 @@ cython_debug/
 **/*.DS_Store
 
 .\!garbage/
+
+# Local environment variables manager configuration
+.envrc

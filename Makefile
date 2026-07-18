@@ -3,6 +3,7 @@
 # Install dev dependencies
 install_dev_dependencies:
 	uv sync --extra all
+	npm install --prefix frontend
 
 # Local precommit
 precommit:
