@@ -16,6 +16,9 @@ This document provides a technical walkthrough of the core components in the Sta
   - `user_prompt_source`: Path to the default user prompt template.
   - `user_prompt_format`: Template format, supporting formats like `f-string`.
   - `tools`: A list of registered tool names that the agent can execute.
+  - `retry`: Configuration parameters for retrying transient failures.
+    - `attempts`: Maximum number of attempts (default: 3, minimum: 1).
+    - `delay`: Wait time in seconds between retries (default: 5.0, minimum: 0.0).
 
 ### Prompt Templates (`src/prompts/`)
 
@@ -90,3 +93,21 @@ Standardizes static inspection hooks and test execution before changes can be co
 ### Pull Request Verifier (`src/utils/pr_validator.py`)
 
 - **Purpose**: Ensures pull request descriptions match the required structure in `.github/pull_request_template.md`. Parses description bodies, verifies all required sections are present, checks that boilerplate questions are retained, and prevents raw template placeholder text from being committed.
+
+---
+
+## 6. Retry & Failure Handling
+
+The codebase implements a robust, two-tier retry mechanism to handle transient network errors, timeouts, or model provider overload incidents gracefully:
+
+### 1. Tool-Level Retries (`src/utils/retry.py`)
+- **Wrapper**: Sync and async tools listed in configurations are wrapped via `wrap_tool_with_retry`.
+- **Behavior**: Individual tool call failures (e.g. transient 503 errors from Google Sheets API) are intercepted and retried according to the configuration attempts and delay, without aborting or restarting the parent agent execution.
+
+### 2. Agent-Level Retries (`src/agents/`)
+- **Wrapper**: Main model executions inside both `PydanticAIAgent` and `AntigravityAgent` are protected by a retry loop.
+- **Behavior**:
+  - Catches transient errors (e.g. rate limit quota 429, provider service unavailable 503, API connections/timeouts).
+  - Registers failures on the active OpenTelemetry span via `span.record_exception(e)` to preserve logging traces.
+  - If a stream call has already yielded tokens (`has_yielded = True`), the retry logic aborts and propagates the exception to prevent replaying duplicate tokens.
+  - Non-retryable errors (like authentication failure 401/403 or bad request 400) immediately abort execution.
