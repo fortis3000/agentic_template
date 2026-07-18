@@ -268,7 +268,7 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
 
         # 2. Resolve Tools
         tools = []
-        tools_registry = tools_registry or {}
+        tools_registry = {**(tools_registry or {})}
         if tools_config_path:
             tools_registry.update(ToolFactory.load_from_yaml(tools_config_path))
 

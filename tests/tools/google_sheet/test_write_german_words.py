@@ -1,8 +1,9 @@
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.tools.google_sheet.tool import (
+from src.tools.google_sheet.write_german_words import (
     GoogleSheetsAddVocabEntryTool,
     GoogleSheetsReadTool,
     GoogleSheetsWriteTool,
@@ -11,7 +12,7 @@ from src.tools.google_sheet.tool import (
 EXPECTED_CALLS = 2
 
 
-@patch("src.tools.google_sheet.tool.GoogleSheetsClient")
+@patch("src.tools.google_sheet.write_german_words.GoogleSheetsClient")
 def test_google_sheet_read_tool(mock_client_class):
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
@@ -26,7 +27,7 @@ def test_google_sheet_read_tool(mock_client_class):
     mock_client.read_range.assert_called_once_with("test_id", "Sheet1!A1:B2")
 
 
-@patch("src.tools.google_sheet.tool.GoogleSheetsClient")
+@patch("src.tools.google_sheet.write_german_words.GoogleSheetsClient")
 def test_google_sheet_write_tool_success(mock_client_class):
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
@@ -46,14 +47,13 @@ def test_google_sheet_write_tool_success(mock_client_class):
     result = write_callable("Sheet1!A1:B2", [["NewA", "NewB"], ["NewC", "NewD"]])
 
     assert result == {"updatedCells": 4}
-    # Expected calls: read old, write new, read new
     assert mock_client.read_range.call_count == EXPECTED_CALLS
     mock_client.write_range.assert_called_once_with(
         "test_id", "Sheet1!A1:B2", [["NewA", "NewB"], ["NewC", "NewD"]]
     )
 
 
-@patch("src.tools.google_sheet.tool.GoogleSheetsClient")
+@patch("src.tools.google_sheet.write_german_words.GoogleSheetsClient")
 def test_google_sheet_write_tool_dimension_mismatch(mock_client_class):
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
@@ -65,7 +65,7 @@ def test_google_sheet_write_tool_dimension_mismatch(mock_client_class):
     tool = GoogleSheetsWriteTool(spreadsheet_id="test_id")
     write_callable = tool.get_callable()
 
-    with pytest.raises(ValueError, match="Dimensions mismatch"):
+    with pytest.raises(ValueError, match="Write verification failed"):
         write_callable("Sheet1!A1:B2", [["NewA", "NewB"], ["NewC", "NewD"]])
 
     # Rollback should be triggered: writing back the original data
@@ -75,19 +75,21 @@ def test_google_sheet_write_tool_dimension_mismatch(mock_client_class):
     )
 
 
-@patch("src.tools.google_sheet.tool.GoogleSheetsClient")
+@patch("src.tools.google_sheet.write_german_words.GoogleSheetsClient")
 def test_google_sheet_add_vocab_entry_tool_success(mock_client_class):
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
 
-    # 1. read_range pre-check (returns 2 rows)
-    # 2. read_range post-check to verify range (returns the added row)
-    mock_client.read_range.side_effect = [
-        [["header1"], ["row1"]],
-        [["vocab_hund_01", "der Hund", "der", "dog", "[canine]"]],
-    ]
+    date_suffix = datetime.now().strftime("%y%m%d")
+    expected_id = f"vocab_hund_{date_suffix}"
 
-    mock_client.write_range.return_value = {"updatedCells": 5}
+    expected_row = [expected_id, "der Hund", "der", "dog", "[canine]", "", "", "", "", "", ""]
+
+    mock_client.read_range.side_effect = [
+        [["w"], ["vocab_hund_260714"]],  # 1st call: read A:A
+        [expected_row],  # 2nd call: verification read
+    ]
+    mock_client.write_range.return_value = {"updatedCells": 11}
 
     tool = GoogleSheetsAddVocabEntryTool(spreadsheet_id="test_id")
     add_callable = tool.get_callable()
@@ -102,25 +104,32 @@ def test_google_sheet_add_vocab_entry_tool_success(mock_client_class):
 
     assert result["success"] is True
     assert result["row_number"] == expected_row_num
-    assert result["written_entry"]["w"] == "vocab_hund_01"
+    assert result["written_entry"]["w"] == expected_id
     assert result["written_entry"]["Target_German"] == "der Hund"
+    assert result["written_entry"]["Gender"] == "der"
+    assert result["written_entry"]["Native_Translation"] == "dog"
+    assert result["written_entry"]["Hint_Disambiguation"] == "[canine]"
 
-    # Expected calls: read range, write range at A3:E3, read range at A3:E3
-    mock_client.read_range.assert_any_call("test_id", "A1:E500")
-    mock_client.read_range.assert_any_call("test_id", "A3:E3")
-    mock_client.write_range.assert_called_once_with(
-        "test_id", "A3:E3", [["vocab_hund_01", "der Hund", "der", "dog", "[canine]"]]
-    )
+    # Verify append and read-back calls
+    mock_client.read_range.assert_any_call("test_id", "A:A")
+    mock_client.read_range.assert_any_call("test_id", "A3:K3")
+    mock_client.write_range.assert_called_once_with("test_id", "A3:K3", [expected_row])
 
 
-@patch("src.tools.google_sheet.tool.GoogleSheetsClient")
+@patch("src.tools.google_sheet.write_german_words.GoogleSheetsClient")
 def test_google_sheet_add_vocab_entry_tool_verification_failure(mock_client_class):
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
 
-    # 1. read_range pre-check (returns 2 rows)
-    # 2. read_range post-check (returns empty/mismatched row)
-    mock_client.read_range.side_effect = [[["header1"], ["row1"]], [[]]]
+    date_suffix = datetime.now().strftime("%y%m%d")
+    expected_id = f"vocab_hund_{date_suffix}"
+    expected_row = [expected_id, "der Hund", "der", "dog", "[canine]", "", "", "", "", "", ""]
+
+    mock_client.read_range.side_effect = [
+        [["w"], ["vocab_hund_260714"]],  # 1st call: read A:A
+        [[]],  # 2nd call: verification read (mismatch)
+    ]
+    mock_client.write_range.return_value = {"updatedCells": 11}
 
     tool = GoogleSheetsAddVocabEntryTool(spreadsheet_id="test_id")
     add_callable = tool.get_callable()
@@ -133,5 +142,5 @@ def test_google_sheet_add_vocab_entry_tool_verification_failure(mock_client_clas
             hint_disambiguation="[canine]",
         )
 
-    # Rollback should be triggered: writing back empty values to A3:E3
-    mock_client.write_range.assert_any_call("test_id", "A3:E3", [["", "", "", "", ""]])
+    # Rollback should write empty values back to A3:K3
+    mock_client.write_range.assert_any_call("test_id", "A3:K3", [[""] * len(expected_row)])

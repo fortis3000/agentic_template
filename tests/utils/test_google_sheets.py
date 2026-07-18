@@ -2,15 +2,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.tools.google_sheet.google_sheets import GoogleSheetsClient
+from src.utils.google_sheets import GoogleSheetsClient
 
 
 @pytest.fixture
 def mock_sheets_client():
     # Patch the google credentials and build methods to avoid real network requests
     with (
-        patch("src.tools.google_sheet.google_sheets.google.auth.default") as mock_auth,
-        patch("src.tools.google_sheet.google_sheets.build") as mock_build,
+        patch("src.utils.google_sheets.google.auth.default") as mock_auth,
+        patch("src.utils.google_sheets.build") as mock_build,
     ):
         mock_auth.return_value = (MagicMock(), "project-id")
 

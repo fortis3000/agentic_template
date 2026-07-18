@@ -1,8 +1,9 @@
 import logging
+from datetime import datetime
 from typing import Any, Callable, Dict, List
 
 from src.tools.base import BaseTool, ToolFactory
-from src.tools.google_sheet.google_sheets import GoogleSheetsClient
+from src.utils.google_sheets import GoogleSheetsClient, VocabEntry
 
 logger = logging.getLogger(__name__)
 
@@ -123,10 +124,16 @@ class GoogleSheetsAddVocabEntryTool(BaseTool):
             gender: str,
             native_translation: str,
             hint_disambiguation: str = "",
+            theme_context: str = "",
+            example_sentence: str = "",
+            collocations: str = "",
+            antonym: str = "",
+            media: str = "",
+            tags: str = "",
         ) -> Dict[str, Any]:
             """Adds a new vocabulary entry to the configured Google Sheet.
 
-            Generates a unique ID (e.g. vocab_word_01) and appends the entry
+            Generates a unique ID (e.g. vocab_word_YYMMDD) and appends the entry
             to the end of the table automatically.
 
             Args:
@@ -134,42 +141,60 @@ class GoogleSheetsAddVocabEntryTool(BaseTool):
                 gender: The grammatical gender (e.g. 'die', 'der', 'das', or empty).
                 native_translation: The English translation (e.g. 'cat').
                 hint_disambiguation: Optional usage hint or disambiguation.
+                theme_context: Optional theme or context category.
+                example_sentence: Optional example sentence.
+                collocations: Optional common word pairings/collocations.
+                antonym: Optional antonym of the word.
+                media: Optional media reference or links.
+                tags: Optional tags or labels.
 
             Returns:
                 A dictionary indicating success and details of the written row.
             """
-            # 1. Read existing rows to determine the next empty row
-            try:
-                existing_rows = self.client.read_range(self.spreadsheet_id, "A1:E500")
-            except Exception as e:
-                logger.error(f"Failed to read sheet before appending: {e}")
-                raise ValueError(f"Failed to read existing rows: {e}")
-
-            last_row_num = len(existing_rows)
-            next_row_num = last_row_num + 1
-
-            # 2. Format unique ID
-            # Strip gender prefixes if present to get clean word for ID
+            # 1. Format unique ID (vocab_<clean_word>_<YYMMDD>)
             clean_word = target_german.lower()
             for prefix in ["der ", "die ", "das ", "den ", "dem ", "des "]:
                 if clean_word.startswith(prefix):
                     clean_word = clean_word[len(prefix) :]
                     break
-            # Replace spaces and special characters
             clean_id_suffix = "".join(c if c.isalnum() else "_" for c in clean_word).strip("_")
-            vocab_id = f"vocab_{clean_id_suffix}_01"
+            date_suffix = datetime.now().strftime("%y%m%d")
+            vocab_id = f"vocab_{clean_id_suffix}_{date_suffix}"
 
-            new_row = [vocab_id, target_german, gender, native_translation, hint_disambiguation]
+            # 2. Instantiate and validate via Pydantic
+            entry = VocabEntry(
+                w=vocab_id,
+                Target_German=target_german,
+                Gender=gender,
+                Native_Translation=native_translation,
+                Hint_Disambiguation=hint_disambiguation,
+                Theme_Context=theme_context,
+                Example_Sentence=example_sentence,
+                Collocations=collocations,
+                Antonym=antonym,
+                Media=media,
+                Tags=tags,
+            )
 
-            # 3. Write row
-            write_range = f"A{next_row_num}:E{next_row_num}"
+            # 3. Read existing rows to determine the next empty row (at the end of the table)
+            try:
+                existing_ids = self.client.read_range(self.spreadsheet_id, "A:A")
+            except Exception as e:
+                logger.error(f"Failed to read column A: {e}")
+                raise ValueError(f"Failed to read existing rows: {e}")
+
+            next_row_num = len(existing_ids) + 1
+            write_range = f"A{next_row_num}:K{next_row_num}"
+            new_row = entry.to_row()
+
+            # 4. Write row to the end of the table
             try:
                 result = self.client.write_range(self.spreadsheet_id, write_range, [new_row])
             except Exception as e:
                 logger.error(f"Failed to write new entry: {e}")
                 raise ValueError(f"Failed to write new entry: {e}")
 
-            # 4. Verify post-write
+            # 5. Verify post-write
             try:
                 verification_row = self.client.read_range(self.spreadsheet_id, write_range)
             except Exception as e:
@@ -177,14 +202,11 @@ class GoogleSheetsAddVocabEntryTool(BaseTool):
                 raise ValueError(f"Post-write verification read failed: {e}")
 
             if not verification_row or verification_row[0] != new_row:
-                # Attempt rollback by writing empty cells or old data
                 logger.warning(
                     "Verification failed. Row did not match expected contents. Attempting rollback..."
                 )
                 try:
-                    self.client.write_range(
-                        self.spreadsheet_id, write_range, [["", "", "", "", ""]]
-                    )
+                    self.client.write_range(self.spreadsheet_id, write_range, [[""] * len(new_row)])
                 except Exception as rollback_err:
                     logger.critical(f"Rollback failed: {rollback_err}")
                 raise ValueError(
@@ -194,13 +216,7 @@ class GoogleSheetsAddVocabEntryTool(BaseTool):
             return {
                 "success": True,
                 "row_number": next_row_num,
-                "written_entry": {
-                    "w": vocab_id,
-                    "Target_German": target_german,
-                    "Gender": gender,
-                    "Native_Translation": native_translation,
-                    "Hint_Disambiguation": hint_disambiguation,
-                },
+                "written_entry": entry.model_dump(),
                 "api_response": result,
             }
 
