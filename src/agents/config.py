@@ -23,6 +23,14 @@ class AgentConfigSchema(BaseModel):
     mcp_servers: dict[str, Any] = Field(default_factory=dict)
     retry: RetryConfig = Field(default_factory=RetryConfig)
 
+    acceptable_data_types: list[str] = Field(
+        default_factory=lambda: ["image/png", "image/jpeg", "image/gif"]
+    )
+    max_image_width: int = 1024
+    max_image_height: int = 1024
+    min_image_width: int = 128
+    min_image_height: int = 128
+
     @model_validator(mode="before")
     @classmethod
     def clean_retry(cls, data: Any) -> Any:

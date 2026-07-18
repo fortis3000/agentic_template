@@ -4,6 +4,7 @@ import DOMPurify from "dompurify";
 export interface Message {
   role: "user" | "assistant";
   content: string;
+  images?: { data: string; mime_type: string }[];
 }
 
 export interface ToolCall {
@@ -39,6 +40,13 @@ export class AgentController {
   sessions = $state<Session[]>([]);
   files = $state<WorkspaceFile[]>([]);
   selectedConfig = $state<string>("configs/agent_config.yaml");
+  activeConfigDetails = $state<any>({
+    acceptable_data_types: ["image/png", "image/jpeg", "image/gif"],
+    max_image_width: 1024,
+    max_image_height: 1024,
+    min_image_width: 128,
+    min_image_height: 128,
+  });
 
   private abortController: AbortController | null = null;
 
@@ -46,6 +54,29 @@ export class AgentController {
     this.fetchConfigs();
     this.fetchSessions();
     this.fetchFiles();
+
+    // Auto-fetch active config details when selectedConfig changes
+    $effect(() => {
+      if (this.selectedConfig) {
+        this.fetchActiveConfigDetails();
+      }
+    });
+  }
+
+  async fetchActiveConfigDetails() {
+    if (!this.selectedConfig) return;
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/configs/detail?config_path=${encodeURIComponent(
+          this.selectedConfig,
+        )}`,
+      );
+      if (res.ok) {
+        this.activeConfigDetails = await res.json();
+      }
+    } catch (err) {
+      console.error("Failed to fetch active config details", err);
+    }
   }
 
   // Fetch all available agent config files
@@ -142,16 +173,35 @@ export class AgentController {
   }
 
   // Send message and process SSE events stream
-  async sendMessage(query: string) {
+  async sendMessage(
+    query: string,
+    attachedImages: { data: string; mime_type: string }[] = [],
+  ) {
     this.isGenerating = true;
     this.toolCalls = []; // reset tools
 
     // Add user message
-    this.messages = [...this.messages, { role: "user", content: query }];
+    this.messages = [
+      ...this.messages,
+      { role: "user", content: query, images: attachedImages },
+    ];
 
     let currentSessId = this.sessionId;
 
     try {
+      // Prepare images payload
+      const processedImages = attachedImages.map((img) => {
+        let rawData = img.data;
+        const commaIdx = rawData.indexOf(",");
+        if (commaIdx !== -1) {
+          rawData = rawData.substring(commaIdx + 1);
+        }
+        return {
+          data: rawData,
+          mime_type: img.mime_type,
+        };
+      });
+
       // 1. Post request to initialize execution task
       const response = await fetch(`${API_BASE}/api/agent/chat`, {
         method: "POST",
@@ -160,6 +210,7 @@ export class AgentController {
           session_id: currentSessId,
           config_path: this.selectedConfig,
           query,
+          images: processedImages.length > 0 ? processedImages : undefined,
         }),
       });
 

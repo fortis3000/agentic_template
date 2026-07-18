@@ -2,18 +2,23 @@ import asyncio
 import contextvars
 import functools
 import inspect
+import io
 import json
 import re
 import sys
 import uuid
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any, Callable
 
+import yaml
+from PIL import Image
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
 
+from src.agents.base import AgentInputPart, ImagePart, TextPart
+from src.agents.config import AgentYamlConfig
 from src.agents.pydantic_ai import PydanticAIAgentGenerator
 from src.tools.base import ToolFactory
 from src.utils.logger import get_logger
@@ -191,6 +196,7 @@ class ChatRequest(BaseModel):
     config_path: str = "configs/agent_config.yaml"
     query: str
     system_variables: dict[str, Any] = {"role": "Senior Assistant"}
+    images: list[ImagePart] | None = None
 
     @field_validator("session_id")
     @classmethod
@@ -218,6 +224,57 @@ class ChatRequest(BaseModel):
         if resolved.suffix.lower() not in (".yaml", ".yml"):
             raise ValueError("config file must be a YAML file (.yaml or .yml)")
         return v
+
+
+def process_and_validate_image(
+    image_bytes: bytes,
+    mime_type: str | None,
+    acceptable_types: list[str],
+    min_w: int,
+    min_h: int,
+    max_w: int,
+    max_h: int,
+) -> tuple[bytes, str]:
+    """Validates the image MIME type and resolution constraints, and resizes if it exceeds max limits.
+
+    Returns:
+        A tuple of (processed_image_bytes, resolved_mime_type).
+    """
+    resolved_mime = mime_type or "image/png"
+    if resolved_mime not in acceptable_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported image format: {resolved_mime}. Allowed formats: {', '.join(acceptable_types)}",
+        )
+
+    try:
+        img = Image.open(io.BytesIO(image_bytes))
+        width, height = img.size
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid image content: {str(e)}")
+
+    if width < min_w or height < min_h:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Image resolution {width}x{height} is below the minimum allowed limit of {min_w}x{min_h}.",
+        )
+
+    if width > max_w or height > max_h:
+        ratio = min(max_w / width, max_h / height)
+        new_width = int(width * ratio)
+        new_height = int(height * ratio)
+
+        img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+        out_buf = io.BytesIO()
+        fmt = resolved_mime.split("/")[-1].upper()
+        if fmt == "JPG":
+            fmt = "JPEG"
+        img.save(out_buf, format=fmt)
+        image_bytes = out_buf.getvalue()
+        logger.info(f"Resized image from {width}x{height} to {new_width}x{new_height}")
+
+    return image_bytes, resolved_mime
 
 
 # Session helper functions
@@ -270,6 +327,33 @@ def get_configs():
         for file in CONFIGS_DIR.glob("*.yml"):
             configs.append(str(file.relative_to(WORKSPACE_ROOT)))
     return {"configs": sorted(configs)}
+
+
+@app.get("/api/configs/detail")
+def get_config_detail(config_path: str):
+    """Retrieves parsed config parameters for the given config file."""
+    try:
+        validated_path = ChatRequest.validate_config_path_field(config_path)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    resolved_path = (WORKSPACE_ROOT / validated_path).resolve()
+    try:
+        with open(resolved_path, "r", encoding="utf-8") as f:
+            config_data = yaml.safe_load(f)
+
+        validated_config = AgentYamlConfig.model_validate(config_data)
+
+        return {
+            "acceptable_data_types": validated_config.agent.acceptable_data_types,
+            "max_image_width": validated_config.agent.max_image_width,
+            "max_image_height": validated_config.agent.max_image_height,
+            "min_image_width": validated_config.agent.min_image_width,
+            "min_image_height": validated_config.agent.min_image_height,
+        }
+    except Exception as e:
+        logger.error(f"Failed to load config details for {config_path}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to load config: {str(e)}")
 
 
 @app.get("/api/sessions")
@@ -357,6 +441,48 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     """Triggers the agent execution in a background task."""
     session_id = request.session_id or str(uuid.uuid4())
 
+    # 1. Load active config to get image validation settings
+    resolved_path = (WORKSPACE_ROOT / request.config_path).resolve()
+    try:
+        with open(resolved_path, "r", encoding="utf-8") as f:
+            config_data = yaml.safe_load(f)
+        validated_config = AgentYamlConfig.model_validate(config_data)
+        agent_cfg = validated_config.agent
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to load agent config: {str(e)}")
+
+    # 2. Validate and process attached images
+    processed_images = []
+    if request.images:
+        for img_part in request.images:
+            if not img_part.data and not img_part.path:
+                raise HTTPException(
+                    status_code=400, detail="ImagePart must have either data or path defined."
+                )
+
+            if img_part.data:
+                img_bytes = img_part.data
+            else:
+                if img_part.path is None:
+                    raise HTTPException(status_code=400, detail="Image path must not be None.")
+                abs_path = Path(img_part.path).resolve()
+                if not abs_path.exists():
+                    raise HTTPException(
+                        status_code=400, detail=f"Image path does not exist: {img_part.path}"
+                    )
+                img_bytes = abs_path.read_bytes()
+
+            processed_bytes, resolved_mime = process_and_validate_image(
+                image_bytes=img_bytes,
+                mime_type=img_part.mime_type,
+                acceptable_types=agent_cfg.acceptable_data_types,
+                min_w=agent_cfg.min_image_width,
+                min_h=agent_cfg.min_image_height,
+                max_w=agent_cfg.max_image_width,
+                max_h=agent_cfg.max_image_height,
+            )
+            processed_images.append(ImagePart(data=processed_bytes, mime_type=resolved_mime))
+
     # Cancel any active running task for this session first
     if session_id in active_tasks:
         active_tasks[session_id].cancel()
@@ -375,6 +501,7 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
             config_path=request.config_path,
             query=request.query,
             system_variables=request.system_variables,
+            images=processed_images,
         )
     )
     active_tasks[session_id] = task
@@ -387,6 +514,7 @@ async def run_agent_in_background(  # noqa: PLR0912
     config_path: str,
     query: str,
     system_variables: dict[str, Any],
+    images: list[ImagePart] | None = None,
 ):
     """Runs agent execution, saves logs, and pumps events into the active stream queue."""
     token_context = current_session_id.set(session_id)
@@ -416,8 +544,26 @@ async def run_agent_in_background(  # noqa: PLR0912
             tools_registry=merged_registry,
         )
 
+        # Build multimodal inputs list
+        prompt_mgr = getattr(agent, "prompt_manager", None)
+        user_prompt_src = getattr(agent, "default_user_prompt_source", None)
+        user_prompt_fmt = getattr(agent, "default_user_prompt_format", "f-string")
+
+        if prompt_mgr and user_prompt_src:
+            user_prompt = prompt_mgr.load_prompt(
+                user_prompt_src,
+                variables={"query": query},
+                format_style=user_prompt_fmt,
+            )
+        else:
+            user_prompt = query
+
+        inputs: list[AgentInputPart] = [TextPart(text=user_prompt)]
+        if images:
+            inputs.extend(images)
+
         chunks = []
-        async for chunk in agent.call_stream(inputs=cast(Any, {"query": query})):
+        async for chunk in agent.call_stream(inputs=inputs):
             chunks.append(chunk)
             if session_id in active_streams:
                 await active_streams[session_id].put({"event": "token", "text": chunk})

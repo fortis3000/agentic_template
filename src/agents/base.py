@@ -1,26 +1,40 @@
 import asyncio
+import base64
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Union
+from typing import Any, Union
 
 import nest_asyncio
+from pydantic import BaseModel, field_validator
 
 
-@dataclass
-class TextPart:
+class TextPart(BaseModel):
     """Represents a text input part for the agent."""
 
     text: str
 
 
-@dataclass
-class ImagePart:
+class ImagePart(BaseModel):
     """Represents an image input part for the agent, supporting raw bytes or file paths."""
 
     data: bytes | None = None
     path: str | None = None
     mime_type: str | None = None
+
+    @field_validator("data", mode="before")
+    @classmethod
+    def decode_base64(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            if v.startswith("data:"):
+                comma_idx = v.find(",")
+                if comma_idx != -1:
+                    v = v[comma_idx + 1 :]
+            try:
+                return base64.b64decode(v)
+            except Exception:
+                raise ValueError("Invalid base64 encoded data")
+        return v
 
     @classmethod
     def from_file(cls, path: str, mime_type: str | None = None) -> "ImagePart":
