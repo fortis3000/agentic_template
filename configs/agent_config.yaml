@@ -6,6 +6,9 @@ agent:
   user_prompt_path: "src/prompts/user_prompt.txt"
   app_data_dir: "data"
   streaming: false
+  retry:
+    attempts: 3
+    delay: 5
   tools:
     - "get_weather"
     - "read_google_sheet"

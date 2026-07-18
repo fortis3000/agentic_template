@@ -382,7 +382,7 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     return {"session_id": session_id, "status": "processing"}
 
 
-async def run_agent_in_background(
+async def run_agent_in_background(  # noqa: PLR0912
     session_id: str,
     config_path: str,
     query: str,

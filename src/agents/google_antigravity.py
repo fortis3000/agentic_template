@@ -1,3 +1,4 @@
+import asyncio
 import functools
 import inspect
 import os
@@ -22,6 +23,7 @@ from src.agents.base import AgentInputPart, BaseAgent, BaseAgentGenerator, Image
 from src.agents.prompt_manager import PromptManager
 from src.tools.base import ToolFactory
 from src.utils.logger import get_logger
+from src.utils.retry import RetryConfig, is_retryable_exception, retry_async, wrap_tool_with_retry
 
 logger = get_logger(__name__)
 
@@ -87,19 +89,22 @@ class AntigravityAgent(BaseAgent):
         prompt_manager: PromptManager,
         default_user_prompt_source: str | None = None,
         default_user_prompt_format: str = "f-string",
+        retry_config: RetryConfig | None = None,
     ):
         """Initialize the AntigravityAgent.
 
         Args:
-            config: The LocalAgentConfig used to instantiate the Antigravity Agent.
+            config: The LocalAgentConfig instance.
             prompt_manager: The PromptManager for resolving prompts.
             default_user_prompt_source: The default user prompt template source.
             default_user_prompt_format: The template format of the user prompt.
+            retry_config: Configuration for retries.
         """
         self.config = config
         self.prompt_manager = prompt_manager
         self.default_user_prompt_source = default_user_prompt_source
         self.default_user_prompt_format = default_user_prompt_format
+        self.retry_config = retry_config or RetryConfig()
 
     async def call(self, inputs: list[AgentInputPart] | str | dict[str, Any] | None = None) -> str:
         """Asynchronously call the agent.
@@ -122,16 +127,23 @@ class AntigravityAgent(BaseAgent):
                 SpanAttributes.LLM_MODEL_NAME: model_name,
             },
         ) as span:
-            try:
+
+            async def _run():
                 converted_inputs = self._prepare_inputs(inputs)
                 async with G_Agent(config=self.config) as agent:
                     response = await agent.chat(converted_inputs)
-                    res_text = await response.text()
-                    span.set_attribute(SpanAttributes.OUTPUT_VALUE, res_text)
-                    return res_text
-            except Exception as e:
-                span.set_status(trace.StatusCode.ERROR, str(e))
-                raise
+                    return await response.text()
+
+            def log_retry(e: Exception, attempt: int, total_attempts: int):
+                span.record_exception(e)
+                logger.warning(
+                    f"LLM call failed with retryable error (attempt {attempt}/{total_attempts}). "
+                    f"Retrying in {self.retry_config.delay}s... Error: {e}"
+                )
+
+            res_text = await retry_async(_run, self.retry_config, log_retry)
+            span.set_attribute(SpanAttributes.OUTPUT_VALUE, res_text)
+            return res_text
 
     async def call_stream(
         self, inputs: list[AgentInputPart] | str | dict[str, Any] | None = None
@@ -147,6 +159,9 @@ class AntigravityAgent(BaseAgent):
         """
         tracer = trace.get_tracer("antigravity-agent")
         model_name = str(self.config.model) if self.config.model else ""
+        attempts = self.retry_config.attempts
+        delay = self.retry_config.delay
+
         with tracer.start_as_current_span(
             name=f"{model_name or 'agent'} call_stream",
             attributes={
@@ -156,18 +171,30 @@ class AntigravityAgent(BaseAgent):
                 SpanAttributes.LLM_MODEL_NAME: model_name,
             },
         ) as span:
-            try:
-                converted_inputs = self._prepare_inputs(inputs)
-                async with G_Agent(config=self.config) as agent:
-                    response = await agent.chat(converted_inputs)
-                    chunks = []
-                    async for token in response:
-                        chunks.append(token)
-                        yield token
-                    span.set_attribute(SpanAttributes.OUTPUT_VALUE, "".join(chunks))
-            except Exception as e:
-                span.set_status(trace.StatusCode.ERROR, str(e))
-                raise
+            for attempt in range(1, attempts + 1):
+                has_yielded = False
+                try:
+                    converted_inputs = self._prepare_inputs(inputs)
+                    async with G_Agent(config=self.config) as agent:
+                        response = await agent.chat(converted_inputs)
+                        chunks = []
+                        async for token in response:
+                            has_yielded = True
+                            chunks.append(token)
+                            yield token
+                        span.set_attribute(SpanAttributes.OUTPUT_VALUE, "".join(chunks))
+                    break
+                except Exception as e:
+                    if is_retryable_exception(e) and not has_yielded and attempt < attempts:
+                        span.record_exception(e)
+                        logger.warning(
+                            f"LLM call_stream failed with retryable error (attempt {attempt}/{attempts}). "
+                            f"Retrying in {delay}s... Error: {e}"
+                        )
+                        await asyncio.sleep(delay)
+                    else:
+                        span.set_status(trace.StatusCode.ERROR, str(e))
+                        raise
 
     def _prepare_inputs(
         self, inputs: list[AgentInputPart] | str | dict[str, Any] | None
@@ -272,10 +299,16 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
         if tools_config_path:
             tools_registry.update(ToolFactory.load_from_yaml(tools_config_path))
 
+        retry_data = agent_data.get("retry")
+        if not isinstance(retry_data, dict):
+            retry_data = {}
+        retry_config = RetryConfig(**retry_data)
+
         tool_names = agent_data.get("tools", [])
         for tool_name in tool_names:
             if tool_name in tools_registry:
-                tools.append(trace_tool(tools_registry[tool_name]))
+                wrapped_tool = wrap_tool_with_retry(tools_registry[tool_name], retry_config)
+                tools.append(trace_tool(wrapped_tool))
             else:
                 # Log warning or add a stub / placeholder warning
                 logger.warning(
@@ -325,6 +358,7 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
             prompt_manager=prompt_manager,
             default_user_prompt_source=default_user_prompt_source,
             default_user_prompt_format=default_user_prompt_format,
+            retry_config=retry_config,
         )
 
     def _parse_mcp_server(self, name: str, cfg: dict[str, Any]) -> Any:

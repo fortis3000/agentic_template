@@ -82,9 +82,10 @@ sequenceDiagram
     Wrapper->>PM: Resolve and render prompt templates
     PM-->>Wrapper: Compiled system & user prompts
     Wrapper->>SDK: Initialize client session (chat/run)
-    loop Tool Interaction
+    loop Tool Interaction (with Retry wrapper)
         SDK->>Wrapper: Execute registered tool (e.g. get_weather)
         Wrapper->>OTel: Start trace span (Kind: TOOL)
+        note over Wrapper: retry_async/retry_sync if transient error
         Wrapper->>Wrapper: Execute tool function
         Wrapper->>OTel: Close tool span & set output
         Wrapper-->>SDK: Tool result
