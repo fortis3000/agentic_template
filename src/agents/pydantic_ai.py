@@ -122,10 +122,7 @@ class PydanticAIAgent(BaseAgent):
             The final text response from the agent.
         """
         tracer = trace.get_tracer("pydantic-ai-agent")
-        model_name_val = getattr(self.agent.model, "model_name", None) or str(self.agent.model)
-        model_name = str(model_name_val)
-        if "<" in model_name or "object at" in model_name:
-            model_name = self.agent.model.__class__.__name__
+        model_name = self._get_model_name()
 
         with tracer.start_as_current_span(
             name=f"{model_name or 'agent'} call",
@@ -166,10 +163,7 @@ class PydanticAIAgent(BaseAgent):
             Response chunks.
         """
         tracer = trace.get_tracer("pydantic-ai-agent")
-        model_name_val = getattr(self.agent.model, "model_name", None) or str(self.agent.model)
-        model_name = str(model_name_val)
-        if "<" in model_name or "object at" in model_name:
-            model_name = self.agent.model.__class__.__name__
+        model_name = self._get_model_name()
 
         attempts = self.retry_config.attempts
         delay = self.retry_config.delay
@@ -189,7 +183,7 @@ class PydanticAIAgent(BaseAgent):
                     converted_inputs = self._prepare_inputs(inputs)
                     async with self.agent.run_stream(converted_inputs) as response:
                         chunks = []
-                        async for token in response.stream_text():
+                        async for token in response.stream_text(delta=True):
                             has_yielded = True
                             chunks.append(token)
                             yield token
@@ -206,6 +200,13 @@ class PydanticAIAgent(BaseAgent):
                     else:
                         span.set_status(trace.StatusCode.ERROR, str(e))
                         raise
+
+    def _get_model_name(self) -> str:
+        model_name_val = getattr(self.agent.model, "model_name", None) or str(self.agent.model)
+        model_name = str(model_name_val)
+        if "<" in model_name or "object at" in model_name:
+            model_name = self.agent.model.__class__.__name__
+        return model_name
 
     def _prepare_inputs(self, inputs: list[AgentInputPart] | str | dict[str, Any] | None) -> Any:
         """Normalize and convert input representations to Pydantic AI primitives."""
@@ -266,16 +267,16 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
 
     def create_agent(
         self,
-        config_path: str,
+        config: str | AgentYamlConfig,
         system_variables: dict[str, Any] | None = None,
         tools_registry: dict[str, Callable[..., Any]] | None = None,
         tools_config_path: str | None = None,
         **kwargs: Any,
     ) -> BaseAgent:
-        """Create and configure a PydanticAIAgent from a configuration file.
+        """Create and configure a PydanticAIAgent from a configuration file or pre-loaded config.
 
         Args:
-            config_path: Path to the YAML configuration file.
+            config: Path to the YAML configuration file or pre-loaded AgentYamlConfig.
             system_variables: Optional variables to format the system prompt template.
             tools_registry: Optional mapping of tool names to Python callables.
             tools_config_path: Optional path to a YAML file to load tools via ToolFactory.
@@ -284,12 +285,15 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
         Returns:
             An instance of PydanticAIAgent.
         """
-        # Load and parse YAML config
-        with open(config_path, encoding="utf-8") as f:
-            config_data = yaml.safe_load(f)
+        if isinstance(config, str):
+            # Load and parse YAML config
+            with open(config, encoding="utf-8") as f:
+                config_data = yaml.safe_load(f)
+            # 1. Parse and validate using Pydantic validator
+            validated_config = AgentYamlConfig.model_validate(config_data)
+        else:
+            validated_config = config
 
-        # 1. Parse and validate using Pydantic validator
-        validated_config = AgentYamlConfig.model_validate(config_data)
         agent_data_dict = validated_config.agent.model_dump()
 
         # 2. Handle dynamic overrides via kwargs

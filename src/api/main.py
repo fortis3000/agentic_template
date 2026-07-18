@@ -1,39 +1,52 @@
 import asyncio
+import base64
 import contextvars
 import functools
 import inspect
+import io
 import json
 import re
 import sys
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Any, Callable
 
+import yaml
+from PIL import Image
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
+from pydantic.types import Base64Bytes
 
+from src.agents.base import AgentInputPart, ImagePart, TextPart
+from src.agents.config import AgentYamlConfig, ImageConstraints
 from src.agents.pydantic_ai import PydanticAIAgentGenerator
 from src.tools.base import ToolFactory
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Initialize Phoenix OpenTelemetry tracing (only if not running under pytest)
-if "pytest" not in sys.modules:
-    try:
-        from phoenix.otel import register
 
-        register(
-            project_name="agentic-template",
-            auto_instrument=True,
-        )
-        logger.info("Arize Phoenix OpenTelemetry tracing initialized successfully.")
-    except Exception as e:
-        logger.error(f"Failed to initialize Arize Phoenix tracing: {e}")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize Phoenix OpenTelemetry tracing (only if not running under pytest)
+    if "pytest" not in sys.modules:
+        try:
+            from phoenix.otel import register  # noqa: PLC0415
 
-app = FastAPI(title="Agentic Template UI API", version="1.0.0")
+            register(
+                project_name="agentic-template",
+                auto_instrument=True,
+            )
+            logger.info("Arize Phoenix OpenTelemetry tracing initialized successfully.")
+        except Exception as e:
+            logger.error(f"Failed to initialize Arize Phoenix tracing: {e}")
+    yield
+
+
+app = FastAPI(title="Agentic Template UI API", version="1.0.0", lifespan=lifespan)
 
 # Enable CORS for frontend local development
 app.add_middleware(
@@ -186,11 +199,18 @@ STREAM_TOOLS_REGISTRY = {name: make_stream_tool(func) for name, func in TOOLS_RE
 
 
 # Models
+class RequestImagePart(BaseModel):
+    data: Base64Bytes | None = None
+    path: Path | None = None
+    mime_type: str | None = None
+
+
 class ChatRequest(BaseModel):
     session_id: str | None = None
     config_path: str = "configs/agent_config.yaml"
     query: str
     system_variables: dict[str, Any] = {"role": "Senior Assistant"}
+    images: list[RequestImagePart] | None = None
 
     @field_validator("session_id")
     @classmethod
@@ -218,6 +238,84 @@ class ChatRequest(BaseModel):
         if resolved.suffix.lower() not in (".yaml", ".yml"):
             raise ValueError("config file must be a YAML file (.yaml or .yml)")
         return v
+
+
+def process_and_validate_image(
+    image_bytes: bytes,
+    mime_type: str | None,
+    constraints: ImageConstraints,
+) -> tuple[bytes, str, bool]:
+    """Validates the image MIME type and resolution constraints, and resizes if it exceeds max limits.
+
+    Supports frame-by-frame resizing for animated GIFs.
+
+    Returns:
+        A tuple of (processed_image_bytes, resolved_mime_type, resized_any_flag).
+    """
+    min_w = constraints.min_image_width
+    min_h = constraints.min_image_height
+    max_w = constraints.max_image_width
+    max_h = constraints.max_image_height
+    acceptable_types = constraints.acceptable_data_types
+
+    resolved_mime = mime_type or "image/png"
+    if resolved_mime not in acceptable_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported image format: {resolved_mime}. Allowed formats: {', '.join(acceptable_types)}",
+        )
+
+    try:
+        img = Image.open(io.BytesIO(image_bytes))
+        width, height = img.size
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid image content: {str(e)}")
+
+    if width < min_w or height < min_h:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Image resolution {width}x{height} is below the minimum allowed limit of {min_w}x{min_h}.",
+        )
+
+    resized_any = False
+    if width > max_w or height > max_h:
+        ratio = min(max_w / width, max_h / height)
+        new_width = int(width * ratio)
+        new_height = int(height * ratio)
+
+        if img.format == "GIF" and getattr(img, "is_animated", False):
+            frames = []
+            n_frames = getattr(img, "n_frames", 1)
+            for frame_idx in range(n_frames):
+                img.seek(frame_idx)
+                frame = (
+                    img.copy()
+                    .convert("RGBA")
+                    .resize((new_width, new_height), Image.Resampling.LANCZOS)
+                )
+                frames.append(frame)
+            out_buf = io.BytesIO()
+            frames[0].save(
+                out_buf,
+                save_all=True,
+                append_images=frames[1:],
+                format="GIF",
+                loop=img.info.get("loop", 0),
+                duration=img.info.get("duration", 20),
+            )
+            image_bytes = out_buf.getvalue()
+        else:
+            img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            out_buf = io.BytesIO()
+            fmt = resolved_mime.split("/")[-1].upper()
+            if fmt == "JPG":
+                fmt = "JPEG"
+            img.save(out_buf, format=fmt)
+            image_bytes = out_buf.getvalue()
+        logger.info(f"Resized image from {width}x{height} to {new_width}x{new_height}")
+        resized_any = True
+
+    return image_bytes, resolved_mime, resized_any
 
 
 # Session helper functions
@@ -270,6 +368,33 @@ def get_configs():
         for file in CONFIGS_DIR.glob("*.yml"):
             configs.append(str(file.relative_to(WORKSPACE_ROOT)))
     return {"configs": sorted(configs)}
+
+
+@app.get("/api/configs/detail")
+def get_config_detail(config_path: str):
+    """Retrieves parsed config parameters for the given config file."""
+    try:
+        validated_path = ChatRequest.validate_config_path_field(config_path)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    resolved_path = (WORKSPACE_ROOT / validated_path).resolve()
+    try:
+        with open(resolved_path, "r", encoding="utf-8") as f:
+            config_data = yaml.safe_load(f)
+
+        validated_config = AgentYamlConfig.model_validate(config_data)
+
+        return {
+            "acceptable_data_types": validated_config.agent.acceptable_data_types,
+            "max_image_width": validated_config.agent.max_image_width,
+            "max_image_height": validated_config.agent.max_image_height,
+            "min_image_width": validated_config.agent.min_image_width,
+            "min_image_height": validated_config.agent.min_image_height,
+        }
+    except Exception as e:
+        logger.error(f"Failed to load config details for {config_path}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to load config: {str(e)}")
 
 
 @app.get("/api/sessions")
@@ -357,6 +482,48 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     """Triggers the agent execution in a background task."""
     session_id = request.session_id or str(uuid.uuid4())
 
+    # 1. Load active config once
+    resolved_path = (WORKSPACE_ROOT / request.config_path).resolve()
+    try:
+        with open(resolved_path, "r", encoding="utf-8") as f:
+            config_data = yaml.safe_load(f)
+        validated_config = AgentYamlConfig.model_validate(config_data)
+        agent_cfg = validated_config.agent
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to load agent config: {str(e)}")
+
+    # 2. Validate and process attached images
+    processed_images = []
+    resized_any = False
+    if request.images:
+        constraints = agent_cfg.image_constraints
+        for img_part in request.images:
+            if not img_part.data and not img_part.path:
+                raise HTTPException(
+                    status_code=400, detail="ImagePart must have either data or path defined."
+                )
+
+            if img_part.data:
+                img_bytes = img_part.data
+            else:
+                if img_part.path is None:
+                    raise HTTPException(status_code=400, detail="Image path must not be None.")
+                abs_path = Path(img_part.path).resolve()
+                if not abs_path.exists():
+                    raise HTTPException(
+                        status_code=400, detail=f"Image path does not exist: {img_part.path}"
+                    )
+                img_bytes = abs_path.read_bytes()
+
+            processed_bytes, resolved_mime, was_resized = process_and_validate_image(
+                image_bytes=img_bytes,
+                mime_type=img_part.mime_type,
+                constraints=constraints,
+            )
+            if was_resized:
+                resized_any = True
+            processed_images.append(ImagePart(data=processed_bytes, mime_type=resolved_mime))
+
     # Cancel any active running task for this session first
     if session_id in active_tasks:
         active_tasks[session_id].cancel()
@@ -372,9 +539,11 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     task = asyncio.create_task(
         run_agent_in_background(
             session_id=session_id,
-            config_path=request.config_path,
+            config=validated_config,
             query=request.query,
             system_variables=request.system_variables,
+            images=processed_images,
+            resized_any=resized_any,
         )
     )
     active_tasks[session_id] = task
@@ -382,19 +551,57 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     return {"session_id": session_id, "status": "processing"}
 
 
-async def run_agent_in_background(  # noqa: PLR0912
+async def run_agent_in_background(  # noqa: PLR0912, PLR0915
     session_id: str,
-    config_path: str,
-    query: str,
-    system_variables: dict[str, Any],
+    config: str | AgentYamlConfig | None = None,
+    query: str = "",
+    system_variables: dict[str, Any] | None = None,
+    images: list[ImagePart] | None = None,
+    resized_any: bool = False,
+    config_path: str | None = None,
 ):
     """Runs agent execution, saves logs, and pumps events into the active stream queue."""
     token_context = current_session_id.set(session_id)
     loop_context = current_loop.set(asyncio.get_running_loop())
     try:
+        target_config = config or config_path
+        if not target_config:
+            raise ValueError("Must provide either config or config_path")
+
+        if isinstance(target_config, str):
+            resolved_path = (WORKSPACE_ROOT / target_config).resolve()
+            with open(resolved_path, "r", encoding="utf-8") as f:
+                config_data = yaml.safe_load(f)
+            validated_config = AgentYamlConfig.model_validate(config_data)
+        else:
+            validated_config = target_config
+
         # Load existing history
         history = load_session_history(session_id)
-        history.append({"role": "user", "content": query})
+        user_message: dict[str, Any] = {"role": "user", "content": query}
+        if images:
+            serialized_images = []
+            for img in images:
+                img_bytes = None
+                if img.data is not None:
+                    img_bytes = img.data
+                elif img.path is not None:
+                    try:
+                        abs_path = Path(img.path).resolve()
+                        if abs_path.exists():
+                            img_bytes = abs_path.read_bytes()
+                    except Exception as e:
+                        logger.error(f"Failed to read image path {img.path}: {e}")
+
+                if img_bytes is not None:
+                    mime = img.mime_type or "image/png"
+                    b64_str = base64.b64encode(img_bytes).decode("utf-8")
+                    serialized_images.append(
+                        {"data": f"data:{mime};base64,{b64_str}", "mime_type": mime}
+                    )
+            if serialized_images:
+                user_message["images"] = serialized_images
+        history.append(user_message)
         save_session_history(session_id, history)
 
         # Initialize the generator and agent
@@ -411,13 +618,40 @@ async def run_agent_in_background(  # noqa: PLR0912
         merged_registry = {**STREAM_TOOLS_REGISTRY, **wrapped_dynamic_tools}
 
         agent = generator.create_agent(
-            config_path,
+            validated_config,
             system_variables=system_variables,
             tools_registry=merged_registry,
         )
 
+        # Send info event if images were auto-resized on backend
+        if resized_any and session_id in active_streams:
+            await active_streams[session_id].put(
+                {
+                    "event": "info",
+                    "text": "Some attached images exceeded the resolution limit and were resized.",
+                }
+            )
+
+        # Build multimodal inputs list
+        prompt_mgr = getattr(agent, "prompt_manager", None)
+        user_prompt_src = getattr(agent, "default_user_prompt_source", None)
+        user_prompt_fmt = getattr(agent, "default_user_prompt_format", "f-string")
+
+        if prompt_mgr and user_prompt_src:
+            user_prompt = prompt_mgr.load_prompt(
+                user_prompt_src,
+                variables={"query": query},
+                format_style=user_prompt_fmt,
+            )
+        else:
+            user_prompt = query
+
+        inputs: list[AgentInputPart] = [TextPart(text=user_prompt)]
+        if images:
+            inputs.extend(images)
+
         chunks = []
-        async for chunk in agent.call_stream(inputs=cast(Any, {"query": query})):
+        async for chunk in agent.call_stream(inputs=inputs):
             chunks.append(chunk)
             if session_id in active_streams:
                 await active_streams[session_id].put({"event": "token", "text": chunk})
@@ -451,7 +685,7 @@ async def stream_agent(session_id: str):
     if session_id not in active_streams:
         # If no active queue, return immediate done
         async def empty_stream():
-            yield 'event: error\ndata: {"error": "No active stream session found"}\n\n'
+            yield 'event: error\ndata: {"error": "No active stream session found", "text": "No active stream session found"}\n\n'
 
         return StreamingResponse(empty_stream(), media_type="text/event-stream")
 
@@ -462,19 +696,19 @@ async def stream_agent(session_id: str):
         while True:
             try:
                 # Add timeout to avoid waiting forever if task died silently
-                event_data = await asyncio.wait_for(queue.get(), timeout=120.0)
+                event_data = await asyncio.wait_for(queue.get(), timeout=300.0)
                 yield f"event: {event_data['event']}\ndata: {json.dumps(event_data)}\n\n"
 
                 # Terminal events close the SSE stream
                 if event_data["event"] in ("done", "error", "cancelled"):
                     break
             except asyncio.TimeoutError:
-                yield 'event: error\ndata: {"error": "Stream execution timeout"}\n\n'
+                yield 'event: error\ndata: {"error": "Stream execution timeout", "text": "Stream execution timeout"}\n\n'
                 break
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+                yield f"event: error\ndata: {json.dumps({'error': str(e), 'text': str(e)})}\n\n"
                 break
 
         # Clean up queue when stream closes, only if they haven't been overwritten

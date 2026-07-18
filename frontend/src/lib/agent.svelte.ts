@@ -4,6 +4,7 @@ import DOMPurify from "dompurify";
 export interface Message {
   role: "user" | "assistant";
   content: string;
+  images?: { data: string; mime_type: string }[];
 }
 
 export interface ToolCall {
@@ -27,6 +28,14 @@ export interface WorkspaceFile {
   size: number;
 }
 
+export interface AgentConfigDetails {
+  acceptable_data_types: string[];
+  max_image_width: number;
+  max_image_height: number;
+  min_image_width: number;
+  min_image_height: number;
+}
+
 const API_BASE = "http://localhost:8000";
 
 export class AgentController {
@@ -39,6 +48,14 @@ export class AgentController {
   sessions = $state<Session[]>([]);
   files = $state<WorkspaceFile[]>([]);
   selectedConfig = $state<string>("configs/agent_config.yaml");
+  streamInfoMessage = $state<string | null>(null);
+  activeConfigDetails = $state<AgentConfigDetails | null>({
+    acceptable_data_types: ["image/png", "image/jpeg", "image/gif"],
+    max_image_width: 1024,
+    max_image_height: 1024,
+    min_image_width: 128,
+    min_image_height: 128,
+  });
 
   private abortController: AbortController | null = null;
 
@@ -46,6 +63,29 @@ export class AgentController {
     this.fetchConfigs();
     this.fetchSessions();
     this.fetchFiles();
+
+    // Auto-fetch active config details when selectedConfig changes
+    $effect(() => {
+      if (this.selectedConfig) {
+        this.fetchActiveConfigDetails();
+      }
+    });
+  }
+
+  async fetchActiveConfigDetails() {
+    if (!this.selectedConfig) return;
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/configs/detail?config_path=${encodeURIComponent(
+          this.selectedConfig,
+        )}`,
+      );
+      if (res.ok) {
+        this.activeConfigDetails = await res.json();
+      }
+    } catch (err) {
+      console.error("Failed to fetch active config details", err);
+    }
   }
 
   // Fetch all available agent config files
@@ -142,16 +182,36 @@ export class AgentController {
   }
 
   // Send message and process SSE events stream
-  async sendMessage(query: string) {
+  async sendMessage(
+    query: string,
+    attachedImages: { data: string; mime_type: string }[] = [],
+  ) {
     this.isGenerating = true;
     this.toolCalls = []; // reset tools
+    this.streamInfoMessage = null;
 
     // Add user message
-    this.messages = [...this.messages, { role: "user", content: query }];
+    this.messages = [
+      ...this.messages,
+      { role: "user", content: query, images: attachedImages },
+    ];
 
     let currentSessId = this.sessionId;
 
     try {
+      // Prepare images payload
+      const processedImages = attachedImages.map((img) => {
+        let rawData = img.data;
+        const commaIdx = rawData.indexOf(",");
+        if (commaIdx !== -1) {
+          rawData = rawData.substring(commaIdx + 1);
+        }
+        return {
+          data: rawData,
+          mime_type: img.mime_type,
+        };
+      });
+
       // 1. Post request to initialize execution task
       const response = await fetch(`${API_BASE}/api/agent/chat`, {
         method: "POST",
@@ -160,6 +220,7 @@ export class AgentController {
           session_id: currentSessId,
           config_path: this.selectedConfig,
           query,
+          images: processedImages.length > 0 ? processedImages : undefined,
         }),
       });
 
@@ -220,6 +281,8 @@ export class AgentController {
                 // Re-assign to trigger Svelte reactivity
                 this.messages = [...this.messages];
               }
+            } else if (eventType === "info") {
+              this.streamInfoMessage = data.text;
             } else if (eventType === "tool_start") {
               const uniqueId = `${data.tool}-${Date.now()}`;
               this.toolCalls = [
@@ -250,9 +313,10 @@ export class AgentController {
                 this.messages = [...this.messages];
               }
             } else if (eventType === "error") {
+              const errMsg = data.error || data.text || "Unknown error";
               this.messages = [
                 ...this.messages,
-                { role: "assistant", content: `Error: ${data.text}` },
+                { role: "assistant", content: `Error: ${errMsg}` },
               ];
             } else if (eventType === "cancelled") {
               const lastIdx = this.messages.length - 1;

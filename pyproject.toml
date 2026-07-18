@@ -17,6 +17,7 @@ dependencies = [
     "pyyaml",
     "nest-asyncio",
     "semgrep>=1.79.0",
+    "pillow>=10.0.0",
 ]
 
 [project.optional-dependencies]

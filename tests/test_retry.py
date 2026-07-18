@@ -229,7 +229,7 @@ agent:
         async def __aexit__(self, exc_type, exc_val, exc_tb):
             pass
 
-        async def stream_text(self):
+        async def stream_text(self, **kwargs):
             yield "streamed text"
 
     def mock_run_stream(*args, **kwargs):
@@ -239,7 +239,7 @@ agent:
             raise MockAPIError(503, "Unavailable")
         return MockStreamResponse()
 
-    agent.agent.run_stream = mock_run_stream  # type: ignore
+    agent.agent.run_stream = mock_run_stream
     chunks = []
     async for chunk in agent.call_stream("test query"):
         chunks.append(chunk)

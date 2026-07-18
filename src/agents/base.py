@@ -1,30 +1,41 @@
+from __future__ import annotations
+
 import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Union
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Union
 
 import nest_asyncio
+from pydantic import BaseModel, FilePath, model_validator
+
+if TYPE_CHECKING:
+    from src.agents.config import AgentYamlConfig
 
 
-@dataclass
-class TextPart:
+class TextPart(BaseModel):
     """Represents a text input part for the agent."""
 
     text: str
 
 
-@dataclass
-class ImagePart:
+class ImagePart(BaseModel):
     """Represents an image input part for the agent, supporting raw bytes or file paths."""
 
     data: bytes | None = None
-    path: str | None = None
+    path: FilePath | None = None
     mime_type: str | None = None
+
+    @model_validator(mode="after")
+    def validate_has_data_or_path(self) -> "ImagePart":
+        if self.data is None and self.path is None:
+            raise ValueError("ImagePart must have either data or path defined.")
+        return self
 
     @classmethod
     def from_file(cls, path: str, mime_type: str | None = None) -> "ImagePart":
-        return cls(path=path, mime_type=mime_type)
+        return cls(path=Path(path), mime_type=mime_type)
 
     @classmethod
     def from_bytes(cls, data: bytes, mime_type: str) -> "ImagePart":
@@ -108,11 +119,22 @@ class BaseAgentGenerator(ABC):
     """Abstract base class representing an agent factory/generator that spawns agents from configs."""
 
     @abstractmethod
-    def create_agent(self, config_path: str) -> BaseAgent:
-        """Create and configure an agent from a configuration file.
+    def create_agent(
+        self,
+        config: Union[str, "AgentYamlConfig"],
+        system_variables: dict[str, Any] | None = None,
+        tools_registry: dict[str, Any] | None = None,
+        tools_config_path: str | None = None,
+        **kwargs: Any,
+    ) -> BaseAgent:
+        """Create and configure an agent from a configuration file or pre-loaded config.
 
         Args:
-            config_path: Path to the agent configuration file (e.g. YAML).
+            config: Path to the agent configuration file (e.g. YAML) or pre-loaded AgentYamlConfig.
+            system_variables: Optional variables to format the system prompt template.
+            tools_registry: Optional mapping of tool names to Python callables.
+            tools_config_path: Optional path to a YAML file to load tools via ToolFactory.
+            **kwargs: Extra parameters to override configuration fields dynamically.
 
         Returns:
             An instance of BaseAgent.

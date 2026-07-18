@@ -9,6 +9,14 @@ agent:
   retry:
     attempts: 3
     delay: 5
+  acceptable_data_types:
+    - "image/png"
+    - "image/jpeg"
+    - "image/gif"
+  max_image_width: 1024
+  max_image_height: 1024
+  min_image_width: 128
+  min_image_height: 128
   tools:
     - "get_weather"
     - "read_google_sheet"
