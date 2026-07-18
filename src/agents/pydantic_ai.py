@@ -1,3 +1,4 @@
+import asyncio
 import os
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -24,6 +25,7 @@ from src.agents.google_antigravity import trace_tool
 from src.agents.prompt_manager import PromptManager
 from src.tools.base import ToolFactory
 from src.utils.logger import get_logger
+from src.utils.retry import RetryConfig, is_retryable_exception, wrap_tool_with_retry
 
 logger = get_logger(__name__)
 
@@ -92,6 +94,7 @@ class PydanticAIAgent(BaseAgent):
         prompt_manager: PromptManager,
         default_user_prompt_source: str | None = None,
         default_user_prompt_format: str = "f-string",
+        retry_config: RetryConfig | None = None,
     ):
         """Initialize the PydanticAIAgent.
 
@@ -100,11 +103,13 @@ class PydanticAIAgent(BaseAgent):
             prompt_manager: The PromptManager for resolving prompts.
             default_user_prompt_source: The default user prompt template source.
             default_user_prompt_format: The template format of the user prompt.
+            retry_config: Configuration for retries.
         """
         self.agent = agent
         self.prompt_manager = prompt_manager
         self.default_user_prompt_source = default_user_prompt_source
         self.default_user_prompt_format = default_user_prompt_format
+        self.retry_config = retry_config or RetryConfig()
 
     async def call(self, inputs: list[AgentInputPart] | str | dict[str, Any] | None = None) -> str:
         """Asynchronously call the agent.
@@ -122,6 +127,9 @@ class PydanticAIAgent(BaseAgent):
         if "<" in model_name or "object at" in model_name:
             model_name = self.agent.model.__class__.__name__
 
+        attempts = self.retry_config.attempts
+        delay = self.retry_config.delay
+
         with tracer.start_as_current_span(
             name=f"{model_name or 'agent'} call",
             attributes={
@@ -131,15 +139,24 @@ class PydanticAIAgent(BaseAgent):
                 SpanAttributes.LLM_MODEL_NAME: model_name,
             },
         ) as span:
-            try:
-                converted_inputs = self._prepare_inputs(inputs)
-                result = await self.agent.run(converted_inputs)
-                res_text = str(result.output)
-                span.set_attribute(SpanAttributes.OUTPUT_VALUE, res_text)
-                return res_text
-            except Exception as e:
-                span.set_status(trace.StatusCode.ERROR, str(e))
-                raise
+            for attempt in range(1, attempts + 1):
+                try:
+                    converted_inputs = self._prepare_inputs(inputs)
+                    result = await self.agent.run(converted_inputs)
+                    res_text = str(result.output)
+                    span.set_attribute(SpanAttributes.OUTPUT_VALUE, res_text)
+                    return res_text
+                except Exception as e:
+                    if is_retryable_exception(e) and attempt < attempts:
+                        logger.warning(
+                            f"LLM call failed with retryable error (attempt {attempt}/{attempts}). "
+                            f"Retrying in {delay}s... Error: {e}"
+                        )
+                        await asyncio.sleep(delay)
+                    else:
+                        span.set_status(trace.StatusCode.ERROR, str(e))
+                        raise
+            raise RuntimeError("Unreachable")
 
     async def call_stream(
         self, inputs: list[AgentInputPart] | str | dict[str, Any] | None = None
@@ -159,6 +176,9 @@ class PydanticAIAgent(BaseAgent):
         if "<" in model_name or "object at" in model_name:
             model_name = self.agent.model.__class__.__name__
 
+        attempts = self.retry_config.attempts
+        delay = self.retry_config.delay
+
         with tracer.start_as_current_span(
             name=f"{model_name or 'agent'} call_stream",
             attributes={
@@ -168,17 +188,28 @@ class PydanticAIAgent(BaseAgent):
                 SpanAttributes.LLM_MODEL_NAME: model_name,
             },
         ) as span:
-            try:
-                converted_inputs = self._prepare_inputs(inputs)
-                async with self.agent.run_stream(converted_inputs) as response:
-                    chunks = []
-                    async for token in response.stream_text():
-                        chunks.append(token)
-                        yield token
-                    span.set_attribute(SpanAttributes.OUTPUT_VALUE, "".join(chunks))
-            except Exception as e:
-                span.set_status(trace.StatusCode.ERROR, str(e))
-                raise
+            for attempt in range(1, attempts + 1):
+                try:
+                    converted_inputs = self._prepare_inputs(inputs)
+                    has_yielded = False
+                    async with self.agent.run_stream(converted_inputs) as response:
+                        chunks = []
+                        async for token in response.stream_text():
+                            has_yielded = True
+                            chunks.append(token)
+                            yield token
+                        span.set_attribute(SpanAttributes.OUTPUT_VALUE, "".join(chunks))
+                    break
+                except Exception as e:
+                    if is_retryable_exception(e) and not has_yielded and attempt < attempts:
+                        logger.warning(
+                            f"LLM call_stream failed with retryable error (attempt {attempt}/{attempts}). "
+                            f"Retrying in {delay}s... Error: {e}"
+                        )
+                        await asyncio.sleep(delay)
+                    else:
+                        span.set_status(trace.StatusCode.ERROR, str(e))
+                        raise
 
     def _prepare_inputs(self, inputs: list[AgentInputPart] | str | dict[str, Any] | None) -> Any:
         """Normalize and convert input representations to Pydantic AI primitives."""
@@ -286,7 +317,8 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
 
         for tool_name in agent_data.tools:
             if tool_name in tools_registry:
-                tools.append(trace_tool(tools_registry[tool_name]))
+                wrapped_tool = wrap_tool_with_retry(tools_registry[tool_name], agent_data.retry)
+                tools.append(trace_tool(wrapped_tool))
             else:
                 logger.warning(
                     f"Tool '{tool_name}' listed in config but not provided in tools_registry."
@@ -325,4 +357,5 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
             prompt_manager=prompt_manager,
             default_user_prompt_source=default_user_prompt_source,
             default_user_prompt_format=default_user_prompt_format,
+            retry_config=agent_data.retry,
         )

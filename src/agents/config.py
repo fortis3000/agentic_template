@@ -3,6 +3,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from src.agents.prompt_manager import PromptManager
+from src.utils.retry import RetryConfig
 
 
 class AgentConfigSchema(BaseModel):
@@ -20,6 +21,7 @@ class AgentConfigSchema(BaseModel):
     streaming: bool | None = None
     tools: list[str] = Field(default_factory=list)
     mcp_servers: dict[str, Any] = Field(default_factory=dict)
+    retry: RetryConfig = Field(default_factory=RetryConfig)
 
     def get_system_prompt(
         self, prompt_manager: PromptManager, variables: dict[str, Any] | None = None

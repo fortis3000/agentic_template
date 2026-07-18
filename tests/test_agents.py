@@ -86,7 +86,10 @@ agent:
     assert agent.config.model == "gemini-3.5-flash"
     assert agent.config.system_instructions == "System instruction for assistant"
     assert len(agent.config.tools) == 1
-    assert getattr(agent.config.tools[0], "__wrapped__", agent.config.tools[0]) == mock_tool
+    actual_tool = agent.config.tools[0]
+    while hasattr(actual_tool, "__wrapped__"):
+        actual_tool = actual_tool.__wrapped__
+    assert actual_tool == mock_tool
     assert len(agent.config.mcp_servers) == 1
     server = agent.config.mcp_servers[0]
     assert isinstance(server, McpStdioServer)

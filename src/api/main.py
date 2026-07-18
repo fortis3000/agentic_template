@@ -17,6 +17,7 @@ from pydantic import BaseModel, field_validator
 from src.agents.pydantic_ai import PydanticAIAgentGenerator
 from src.tools.base import ToolFactory
 from src.utils.logger import get_logger
+from src.utils.retry import is_retryable_exception
 
 logger = get_logger(__name__)
 
@@ -382,7 +383,7 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
     return {"session_id": session_id, "status": "processing"}
 
 
-async def run_agent_in_background(
+async def run_agent_in_background(  # noqa: PLR0912
     session_id: str,
     config_path: str,
     query: str,
@@ -416,18 +417,43 @@ async def run_agent_in_background(
             tools_registry=merged_registry,
         )
 
-        chunks = []
-        async for chunk in agent.call_stream(inputs=cast(Any, {"query": query})):
-            chunks.append(chunk)
-            if session_id in active_streams:
-                await active_streams[session_id].put({"event": "token", "text": chunk})
+        # Get retry config parameters from agent if available, else default to attempts=3, delay=5
+        retry_config = getattr(agent, "retry_config", None)
+        attempts = retry_config.attempts if retry_config else 3
+        delay = retry_config.delay if retry_config else 5.0
 
-        final_text = "".join(chunks)
-        history.append({"role": "assistant", "content": final_text})
-        save_session_history(session_id, history)
+        for attempt in range(1, attempts + 1):
+            try:
+                chunks = []
+                async for chunk in agent.call_stream(inputs=cast(Any, {"query": query})):
+                    chunks.append(chunk)
+                    if session_id in active_streams:
+                        await active_streams[session_id].put({"event": "token", "text": chunk})
 
-        if session_id in active_streams:
-            await active_streams[session_id].put({"event": "done", "text": final_text})
+                final_text = "".join(chunks)
+                history.append({"role": "assistant", "content": final_text})
+                save_session_history(session_id, history)
+
+                if session_id in active_streams:
+                    await active_streams[session_id].put({"event": "done", "text": final_text})
+
+                break
+            except Exception as e:
+                if is_retryable_exception(e) and attempt < attempts:
+                    logger.warning(
+                        f"Agentic Container execution failed with retryable error (attempt {attempt}/{attempts}). "
+                        f"Retrying in {delay}s... Error: {e}"
+                    )
+                    if session_id in active_streams:
+                        await active_streams[session_id].put(
+                            {
+                                "event": "token",
+                                "text": f"\n*[System: Retryable error occurred ({e}). Retrying attempt {attempt}/{attempts}...]*\n",
+                            }
+                        )
+                    await asyncio.sleep(delay)
+                else:
+                    raise
 
     except asyncio.CancelledError:
         logger.info(f"Agent execution for session {session_id} was cancelled.")

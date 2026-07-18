@@ -57,7 +57,7 @@ agent:
     # We can inspect the length of tools list in the agent
     assert len(agent.agent._function_toolset.tools) == 1
     tool_func = agent.agent._function_toolset.tools["mock_tool"].function
-    if hasattr(tool_func, "__wrapped__"):
+    while hasattr(tool_func, "__wrapped__"):
         tool_func = tool_func.__wrapped__
     assert tool_func == mock_tool
 
