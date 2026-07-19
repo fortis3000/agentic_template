@@ -96,3 +96,54 @@ The VectorDB searches and retrievals are instrumented using OpenTelemetry and Op
 * **`retrieval.documents.{idx}.document.content`**: The text content of the retrieved chunk.
 * **`retrieval.documents.{idx}.document.score`**: The similarity score of the match.
 * **`retrieval.documents.{idx}.document.metadata`**: JSON string of chunk metadata.
+
+---
+
+## 6. Execution & Verification Guide
+
+### Execution Commands
+* **CLI Ingestion**: Run the ingestion synchronization script on a source directory of documents:
+  ```bash
+  uv run python -m src.data.ingest --config configs/ingestion_config.yaml
+  ```
+
+* **Start Vector Database**: Run the containerized Qdrant instance locally:
+  ```bash
+  docker-compose up -d qdrant
+  ```
+
+### Verification Checks
+1. **Verify State DB Delta Tracking**:
+   Query the SQLite delta state database to verify file changes and chunk mappings are stored correctly:
+   ```bash
+   sqlite3 data/ingestion_state.db "SELECT * FROM files;"
+   sqlite3 data/ingestion_state.db "SELECT * FROM ingest_jobs;"
+   ```
+
+2. **Verify Qdrant Ingested Vectors count**:
+   Query the Qdrant REST API or Dashboard (`http://localhost:6333/dashboard`) to verify collection status and point count:
+   ```bash
+   curl -s http://localhost:6333/collections/default_collection
+   ```
+
+---
+
+## 7. Architectural Decisions & Strategy Trade-offs
+
+### In-Memory Task Queue vs. Celery + Redis
+* **In-Memory (`asyncio.Queue`)**:
+  * *Pros*: Minimal dependencies (does not require setting up a message broker or spawning worker containers), zero overhead, extremely simple for local development and testing.
+  * *Cons*: Volatile (if the server process crashes, pending ingestion jobs are lost), lacks scaling capabilities beyond a single container.
+* **Celery + Redis**:
+  * *Pros*: Durable, persistent message backlog, allows horizontal scaling of workers to process heavy text extraction workloads concurrently, provides built-in task monitoring.
+  * *Cons*: Adds infrastructure complexity, requires managing separate broker/worker processes.
+* **Decision**: We use the local in-memory queue for ease of developer setup, with a clear migration roadmap to Celery + Redis for production scaling.
+
+### Text Chunking Strategies
+* **Fixed-size chunker**:
+  * Splits purely based on character lengths. Fast and reliable, but can split sentences mid-thought, reducing vector semantic clarity.
+* **Markdown/HTML structure-aware chunker**:
+  * Splits on layout tags/headers (`#`, `##`, `<div>`). Ensures structural sections remain intact, improving the context quality.
+* **Semantic distance chunker**:
+  * Computes similarity between consecutive sentences using the embedding model and splits when distance exceeds a threshold. Provides the highest context relevance, but is computationally expensive as it requires embedding calls during chunking.
+

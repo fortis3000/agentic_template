@@ -4,7 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.agents.config import EmbeddingModelConfigSchema
-from src.data.ingest import IngestionConfigSchema, IngestionPipeline, chunk_text
+from src.data.ingest import IngestionConfigSchema, IngestionPipeline
+from src.utils.chunkers import fixed_chunker as chunk_text
 
 
 def test_chunk_text_boundaries():

@@ -12,48 +12,92 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+class McpConnectionManager:
+    """Manages persistent connections and sessions for MCP servers to prevent spawning subprocesses on every tool call."""
+
+    _sessions: dict[str, ClientSession] = {}
+    _contexts: dict[str, Any] = {}
+    _lock = asyncio.Lock()
+
+    @classmethod
+    async def get_session(cls, config: McpServerConfigSchema) -> ClientSession:
+        key = f"{config.type}:{config.command or ''}:{config.args}:{config.url or ''}"
+
+        async with cls._lock:
+            session = cls._sessions.get(key)
+            if session is not None:
+                return session
+
+            logger.info(f"Initializing persistent connection for MCP server: {config.type}")
+            if config.type == "stdio":
+                if not config.command:
+                    raise ValueError("command must be specified for stdio MCP server connection")
+                params = StdioServerParameters(
+                    command=config.command,
+                    args=config.args or [],
+                    env=config.env,
+                )
+                ctx = stdio_client(params)
+                read, write = await ctx.__aenter__()
+                cls._contexts[key] = ctx
+
+                sess = ClientSession(read, write)
+                await sess.__aenter__()
+                await sess.initialize()
+                cls._sessions[key] = sess
+                return sess
+
+            elif config.type == "http":
+                if not config.url:
+                    raise ValueError("url must be specified for http MCP server connection")
+                ctx = sse_client(
+                    url=config.url,
+                    headers=config.headers,
+                    timeout=config.timeout,
+                )
+                read, write = await ctx.__aenter__()
+                cls._contexts[key] = ctx
+
+                sess = ClientSession(read, write)
+                await sess.__aenter__()
+                await sess.initialize()
+                cls._sessions[key] = sess
+                return sess
+            else:
+                raise ValueError(f"Unsupported MCP server type: {config.type}")
+
+    @classmethod
+    async def close_all(cls) -> None:
+        """Clean up and close all persistent sessions and connections."""
+        async with cls._lock:
+            for key, session in list(cls._sessions.items()):
+                try:
+                    await session.__aexit__(None, None, None)
+                except Exception as e:
+                    logger.error(f"Error exiting MCP session for {key}: {e}")
+            cls._sessions.clear()
+
+            for key, ctx in list(cls._contexts.items()):
+                try:
+                    await ctx.__aexit__(None, None, None)
+                except Exception as e:
+                    logger.error(f"Error exiting MCP connection context for {key}: {e}")
+            cls._contexts.clear()
+
+
 def make_mcp_tool_callable(config: McpServerConfigSchema, tool_name: str) -> Callable[..., Any]:
     """Generates an async function that connects to the MCP server and invokes the tool."""
 
     async def call_mcp_tool(**kwargs: Any) -> str:
         logger.info(f"Invoking MCP tool '{tool_name}' (type: {config.type})...")
-        if config.type == "stdio":
-            if not config.command:
-                raise ValueError("command must be specified for stdio MCP server connection")
-            params = StdioServerParameters(
-                command=config.command,
-                args=config.args or [],
-                env=config.env,
-            )
-            async with stdio_client(params) as (read, write):
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    result = await session.call_tool(tool_name, kwargs)
-                    text_parts = [
-                        part.text
-                        for part in result.content
-                        if hasattr(part, "text") and isinstance(part.text, str)
-                    ]
-                    return "\n".join(text_parts)
-        elif config.type == "http":
-            if not config.url:
-                raise ValueError("url must be specified for http MCP server connection")
-            async with sse_client(
-                url=config.url,
-                headers=config.headers,
-                timeout=config.timeout,
-            ) as (read, write):
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    result = await session.call_tool(tool_name, kwargs)
-                    text_parts = [
-                        part.text
-                        for part in result.content
-                        if hasattr(part, "text") and isinstance(part.text, str)
-                    ]
-                    return "\n".join(text_parts)
-        else:
-            raise ValueError(f"Unsupported MCP server type: {config.type}")
+        session = await McpConnectionManager.get_session(config)
+        result = await session.call_tool(tool_name, kwargs)
+        text_parts = [
+            part.text
+            for part in result.content
+            if hasattr(part, "text") and isinstance(part.text, str)
+        ]
+        return "\n".join(text_parts)
 
     # Set name of the function to the tool name for docstrings and mapping
     call_mcp_tool.__name__ = tool_name

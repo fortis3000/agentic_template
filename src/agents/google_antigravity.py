@@ -324,10 +324,29 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
                     f"Tool '{tool_name}' listed in config but not provided in tools_registry."
                 )
 
-        # 3. Resolve MCP Servers
-        mcp_servers = []
-        for name, server_cfg in agent_data.mcp_servers.items():
-            mcp_servers.append(self._parse_mcp_server(name, server_cfg))
+        # 3. Resolve MCP Servers to standard wrapped tools
+        from src.agents.mcp import McpServerFactory, make_mcp_tool_callable  # noqa: PLC0415
+
+        for mcp_name, mcp_cfg in agent_data.mcp_servers.items():
+            # Synchronously fetch tools
+            mcp_tools = McpServerFactory.fetch_tools_sync(mcp_cfg)
+            for tool_info in mcp_tools:
+                tool_name = tool_info["name"]
+
+                # Check for tool retry override
+                tool_retry = None
+                if tool_name in agent_data.tool_settings:
+                    tool_retry = agent_data.tool_settings[tool_name].retry
+
+                # Create wrapper callable and wrap it with retry
+                mcp_callable = make_mcp_tool_callable(mcp_cfg, tool_name)
+                wrapped_mcp_callable = wrap_tool_with_retry(
+                    mcp_callable, agent_data.retry, tool_retry
+                )
+
+                # Trace tool and append to tools
+                traced_mcp_callable = trace_tool(wrapped_mcp_callable)
+                tools.append(traced_mcp_callable)
 
         # 4. Resolve app_data_dir to absolute path if specified
         app_data_dir = agent_data.app_data_dir
@@ -338,7 +357,7 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
         local_config = LocalAgentConfig(
             system_instructions=system_prompt,
             tools=tools or None,
-            mcp_servers=mcp_servers or None,
+            mcp_servers=None,
             app_data_dir=app_data_dir,
             model=agent_data.model,
             api_key=agent_data.api_key or kwargs.get("api_key"),

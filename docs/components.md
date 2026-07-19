@@ -145,5 +145,63 @@ To support retrieval-augmented generation (RAG) and search capabilities, the cod
 ### Ingestion Manager (`src/data/ingest.py`)
 - **`IngestionPipeline`**: Synchronizes a target local directory with Qdrant. Utilizes SHA-256 file hashes and timestamps to check for modifications.
 - **SQLite persistent queue**: Keeps track of file states in `files` and enqueued sync tasks in `ingest_jobs` tables inside `data/ingestion_state.db` to process actions sequentially.
-- **`chunk_text`**: Splits documents into digestible segments respecting sentence/paragraph boundaries.
 - **Deterministic UUIDs**: Encodes unique points in Qdrant using deterministic namespace UUIDs (`uuid.uuid5`) to prevent duplicate entry generation and facilitate seamless updates or deletions.
+
+---
+
+## 9. Vector Database Class Diagram
+
+```mermaid
+classDiagram
+    class BaseVectorDB {
+        <<abstract>>
+        +create_collection(collection_name, vector_size, distance)
+        +insert(collection_name, ids, vectors, payloads)
+        +search(collection_name, query_vector, limit, filter_dict)
+        +delete(collection_name, ids)
+    }
+    class QdrantVectorDB {
+        +client: AsyncQdrantClient
+        -instances: dict
+        +create_collection()
+        +insert()
+        +search()
+        +delete()
+    }
+    class VectorDBSearchTool {
+        +collection_name: str
+        +embed_client: BaseEmbeddingClient
+        +db: BaseVectorDB
+        +allowed_search_fields: list
+        +allowed_answer_fields: list
+        +get_callable()
+    }
+    BaseVectorDB <|-- QdrantVectorDB
+    VectorDBSearchTool --> BaseVectorDB
+```
+
+---
+
+## 10. Whitelist Tool Settings & Retry Overrides
+
+Individual tool executions and settings can be overridden on a per-agent basis under `tool_settings` in `agent_config.yaml`:
+
+```yaml
+agent:
+  tool_settings:
+    search_vectordb:
+      retry:
+        attempts: 3
+        delay: 2.0
+      allowed_search_fields:
+        - "category"
+        - "language"
+      allowed_answer_fields:
+        - "text"
+        - "filepath"
+```
+
+- **`retry`**: Override default agent-level retry policies for target tools.
+- **`allowed_search_fields`**: Restricts the metadata filter fields allowed to be queried.
+- **`allowed_answer_fields`**: Restricts which document fields are included in the search response back to the LLM (e.g. only return `"text"` and hide system metadata).
+

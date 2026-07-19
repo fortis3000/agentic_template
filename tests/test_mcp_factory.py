@@ -57,6 +57,7 @@ async def test_make_mcp_tool_callable_stdio():
     mock_result.content = [mock_part]
 
     mock_session = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
     mock_session.initialize = AsyncMock()
     mock_session.call_tool = AsyncMock(return_value=mock_result)
 
@@ -65,10 +66,8 @@ async def test_make_mcp_tool_callable_stdio():
         patch("src.agents.mcp.stdio_client") as mock_stdio,
         patch("src.agents.mcp.ClientSession") as mock_client_session,
     ):
-        # Set up stdio_client context manager mock
-        AsyncMock()
         mock_stdio.return_value.__aenter__.return_value = ("read", "write")
-        mock_client_session.return_value.__aenter__.return_value = mock_session
+        mock_client_session.return_value = mock_session
 
         mcp_tool = make_mcp_tool_callable(cfg, "my_mcp_tool")
         res = await mcp_tool(arg1="value1")

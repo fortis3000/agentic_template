@@ -1,8 +1,8 @@
 import json
 import os
-from typing import Any, Callable, Dict
+from typing import Any, Callable
 
-from src.agents.config import EmbeddingModelConfigSchema
+from src.agents.config import EmbeddingModelConfigSchema, VectorDBConfigSchema
 from src.agents.embeddings import EmbeddingModelFactory
 from src.tools.base import BaseTool, ToolFactory
 from src.tools.qdrant_db import QdrantVectorDB
@@ -18,8 +18,8 @@ class VectorDBSearchTool(BaseTool):
     def __init__(
         self,
         collection_name: str,
-        embedding_model: Dict[str, Any],
-        vectordb: Dict[str, Any],
+        embedding_model: EmbeddingModelConfigSchema | dict[str, Any],
+        vectordb: VectorDBConfigSchema | dict[str, Any],
         allowed_search_fields: list[str] | None = None,
         allowed_answer_fields: list[str] | None = None,
     ):
@@ -28,21 +28,31 @@ class VectorDBSearchTool(BaseTool):
         self.allowed_answer_fields = allowed_answer_fields or []
 
         # Instantiate embedding client
-        emb_cfg = EmbeddingModelConfigSchema.model_validate(embedding_model)
+        emb_cfg = (
+            embedding_model
+            if isinstance(embedding_model, EmbeddingModelConfigSchema)
+            else EmbeddingModelConfigSchema.model_validate(embedding_model)
+        )
         self.embed_client = EmbeddingModelFactory.create(emb_cfg)
 
         # Instantiate Qdrant client
-        db_type = vectordb.get("type", "qdrant")
-        if db_type != "qdrant":
-            raise ValueError(f"VectorDBSearchTool only supports Qdrant Vector DB, got {db_type}")
+        db_cfg = (
+            vectordb
+            if isinstance(vectordb, VectorDBConfigSchema)
+            else VectorDBConfigSchema.model_validate(vectordb)
+        )
+        if db_cfg.type != "qdrant":
+            raise ValueError(
+                f"VectorDBSearchTool only supports Qdrant Vector DB, got {db_cfg.type}"
+            )
 
-        db_params = {k: v for k, v in vectordb.items() if k != "type"}
+        db_params = db_cfg.model_dump(exclude={"type"}, exclude_none=True)
         self.db = QdrantVectorDB(**db_params)
 
     def get_callable(self) -> Callable:
         async def search_vectordb(
             query_text: str,
-            filter_dict: Dict[str, Any] | None = None,
+            filter_dict: dict[str, Any] | None = None,
             search_type: str = "dense",
             limit: int = 5,
             collection_name: str | None = None,

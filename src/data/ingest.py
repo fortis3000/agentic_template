@@ -33,43 +33,6 @@ class IngestionConfigSchema(BaseModel):
     semantic_threshold: float = 0.5
 
 
-def chunk_text(text: str, chunk_size: int = 500, chunk_overlap: int = 50) -> list[str]:
-    """Split text into chunks of chunk_size characters with chunk_overlap overlap.
-
-    Respects paragraph/sentence boundaries where possible.
-    """
-    if not text:
-        return []
-    if len(text) <= chunk_size:
-        return [text]
-
-    chunks = []
-    start = 0
-    while start < len(text):
-        end = start + chunk_size
-        if end >= len(text):
-            chunks.append(text[start:].strip())
-            break
-
-        # Search for separators in the overlap window
-        search_range = text[max(start, end - chunk_overlap) : end]
-        break_point = -1
-        for sep in ("\n\n", "\n", ". ", " "):
-            idx = search_range.rfind(sep)
-            if idx != -1:
-                break_point = max(start, end - chunk_overlap) + idx + len(sep)
-                break
-
-        if break_point != -1 and break_point > start:
-            chunks.append(text[start:break_point].strip())
-            start = break_point
-        else:
-            chunks.append(text[start:end].strip())
-            start = end - chunk_overlap
-
-    return [c for c in chunks if c]
-
-
 class IngestionPipeline:
     """Ingestion pipeline that supports delta updates and job queue persistence."""
 

@@ -47,6 +47,15 @@ class EmbeddingModelConfigSchema(BaseModel):
     supported_data_types: list[str] = Field(default_factory=lambda: ["text"])
 
 
+class VectorDBConfigSchema(BaseModel):
+    type: str = "qdrant"
+    host: str | None = None
+    port: int | None = None
+    url: str | None = None
+    location: str | None = None
+    api_key: str | None = None
+
+
 class ToolSettingsSchema(BaseModel):
     retry: RetryConfig | None = None
     allowed_search_fields: list[str] = Field(default_factory=list)
