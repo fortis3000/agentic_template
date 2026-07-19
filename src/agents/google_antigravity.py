@@ -20,7 +20,7 @@ from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttribu
 from opentelemetry import trace
 
 from src.agents.base import AgentInputPart, BaseAgent, BaseAgentGenerator, ImagePart, TextPart
-from src.agents.config import AgentYamlConfig
+from src.agents.config import AgentConfigSchema, AgentYamlConfig, McpServerConfigSchema
 from src.agents.prompt_manager import PromptManager
 from src.tools.base import ToolFactory
 from src.utils.logger import get_logger
@@ -278,18 +278,25 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
             # Load and parse YAML config
             with open(config, encoding="utf-8") as f:
                 config_data = yaml.safe_load(f)
-            agent_data = config_data.get("agent", {})
+            validated_config = AgentYamlConfig.model_validate(config_data)
         else:
-            agent_data = config.agent.model_dump()
+            validated_config = config
+
+        agent_data_dict = validated_config.agent.model_dump()
+
+        # Allow overrides from kwargs
+        for k, v in kwargs.items():
+            if v is not None:
+                agent_data_dict[k] = v
+
+        agent_data = AgentConfigSchema.model_validate(agent_data_dict)
         prompt_manager = PromptManager(base_dir=self.prompt_base_dir)
 
         # 1. Resolve System instructions
         system_prompt = ""
-        system_prompt_source = agent_data.get("system_prompt_path") or agent_data.get(
-            "system_prompt"
-        )
+        system_prompt_source = agent_data.system_prompt_path or agent_data.system_prompt
         if system_prompt_source:
-            system_prompt_format = agent_data.get("system_prompt_format", "f-string")
+            system_prompt_format = agent_data.system_prompt_format or "f-string"
             system_prompt = prompt_manager.load_prompt(
                 system_prompt_source,
                 variables=system_variables,
@@ -302,44 +309,30 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
         if tools_config_path:
             tools_registry.update(ToolFactory.load_from_yaml(tools_config_path))
 
-        retry_data = agent_data.get("retry")
-        if not isinstance(retry_data, dict):
-            retry_data = {}
-        retry_config = RetryConfig(**retry_data)
-
-        tool_names = agent_data.get("tools", [])
-        for tool_name in tool_names:
+        for tool_name in agent_data.tools:
             if tool_name in tools_registry:
-                wrapped_tool = wrap_tool_with_retry(tools_registry[tool_name], retry_config)
+                tool_retry = None
+                if tool_name in agent_data.tool_settings:
+                    tool_retry = agent_data.tool_settings[tool_name].retry
+
+                wrapped_tool = wrap_tool_with_retry(
+                    tools_registry[tool_name], agent_data.retry, tool_retry
+                )
                 tools.append(trace_tool(wrapped_tool))
             else:
-                # Log warning or add a stub / placeholder warning
-                logger.warning(
+                raise ValueError(
                     f"Tool '{tool_name}' listed in config but not provided in tools_registry."
                 )
 
         # 3. Resolve MCP Servers
         mcp_servers = []
-        mcp_data = agent_data.get("mcp_servers", {})
-        # Can be a dictionary or a list
-        if isinstance(mcp_data, dict):
-            for name, server_cfg in mcp_data.items():
-                mcp_servers.append(self._parse_mcp_server(name, server_cfg))
-        elif isinstance(mcp_data, list):
-            for server_cfg in mcp_data:
-                name = server_cfg.get("name")
-                if not name:
-                    raise ValueError("MCP server in list configuration must have a 'name' field.")
-                mcp_servers.append(self._parse_mcp_server(name, server_cfg))
+        for name, server_cfg in agent_data.mcp_servers.items():
+            mcp_servers.append(self._parse_mcp_server(name, server_cfg))
 
         # 4. Resolve app_data_dir to absolute path if specified
-        app_data_dir = agent_data.get("app_data_dir")
+        app_data_dir = agent_data.app_data_dir
         if app_data_dir:
             app_data_dir = os.path.abspath(app_data_dir)
-
-        # Allow overrides from kwargs
-        model = kwargs.get("model") or agent_data.get("model")
-        api_key = kwargs.get("api_key") or agent_data.get("api_key")
 
         # Build LocalAgentConfig
         local_config = LocalAgentConfig(
@@ -347,44 +340,41 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
             tools=tools or None,
             mcp_servers=mcp_servers or None,
             app_data_dir=app_data_dir,
-            model=model,
-            api_key=api_key,
+            model=agent_data.model,
+            api_key=agent_data.api_key or kwargs.get("api_key"),
         )
 
-        default_user_prompt_source = agent_data.get("user_prompt_path") or agent_data.get(
-            "user_prompt"
-        )
-        default_user_prompt_format = agent_data.get("user_prompt_format", "f-string")
+        default_user_prompt_source = agent_data.user_prompt_path or agent_data.user_prompt
+        default_user_prompt_format = agent_data.user_prompt_format or "f-string"
 
         return AntigravityAgent(
             config=local_config,
             prompt_manager=prompt_manager,
             default_user_prompt_source=default_user_prompt_source,
             default_user_prompt_format=default_user_prompt_format,
-            retry_config=retry_config,
+            retry_config=agent_data.retry,
         )
 
-    def _parse_mcp_server(self, name: str, cfg: dict[str, Any]) -> Any:
-        """Parse dictionary configuration into Google Antigravity MCP types."""
-        conn_type = cfg.get("type", "stdio")
-        if conn_type == "stdio":
+    def _parse_mcp_server(self, name: str, cfg: McpServerConfigSchema) -> Any:
+        """Parse configuration schema into Google Antigravity MCP types."""
+        if cfg.type == "stdio":
             return McpStdioServer(
                 name=name,
-                command=cfg.get("command", ""),
-                args=cfg.get("args", []),
-                enabled_tools=cfg.get("enabled_tools"),
-                disabled_tools=cfg.get("disabled_tools"),
+                command=cfg.command or "",
+                args=cfg.args or [],
+                enabled_tools=cfg.enabled_tools,
+                disabled_tools=cfg.disabled_tools,
             )
-        elif conn_type == "http":
+        elif cfg.type == "http":
             return McpStreamableHttpServer(
                 name=name,
-                url=cfg.get("url", ""),
-                headers=cfg.get("headers"),
-                timeout=float(cfg.get("timeout", 30.0)),
-                sse_read_timeout=float(cfg.get("sse_read_timeout", 300.0)),
-                terminate_on_close=bool(cfg.get("terminate_on_close", True)),
-                enabled_tools=cfg.get("enabled_tools"),
-                disabled_tools=cfg.get("disabled_tools"),
+                url=cfg.url or "",
+                headers=cfg.headers,
+                timeout=float(cfg.timeout),
+                sse_read_timeout=float(cfg.sse_read_timeout),
+                terminate_on_close=bool(cfg.terminate_on_close),
+                enabled_tools=cfg.enabled_tools,
+                disabled_tools=cfg.disabled_tools,
             )
         else:
-            raise ValueError(f"Unsupported MCP server connection type: {conn_type}")
+            raise ValueError(f"Unsupported MCP server connection type: {cfg.type}")

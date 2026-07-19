@@ -121,3 +121,29 @@ The codebase implements a robust, two-tier retry mechanism to handle transient n
   - Registers failures on the active OpenTelemetry span via `span.record_exception(e)` to preserve logging traces.
   - If a stream call has already yielded tokens (`has_yielded = True`), the retry logic aborts and propagates the exception to prevent replaying duplicate tokens.
   - Non-retryable errors (like authentication failure 401/403 or bad request 400) immediately abort execution.
+
+---
+
+## 7. Embeddings & VectorDB Interfaces
+
+To support retrieval-augmented generation (RAG) and search capabilities, the codebase defines clean interfaces for text embeddings and vector storage:
+
+### Embeddings (`src/agents/embeddings.py`)
+- **`BaseEmbeddingClient`**: The base class for generating vector representations of text. Enforces validation rules on dimensions and element types.
+- **`GoogleEmbeddingClient` & `OpenAIEmbeddingClient`**: Integrations with model providers (`google-genai` and `openai`) for dense embeddings generation (e.g. `text-embedding-004`, `text-embedding-3-small`).
+- **Multimodal checks**: Asserts text-only embedding models are not supplied with images, raising `ValueError` on image calls.
+
+### Vector Databases (`src/tools/vectordb_base.py`, `src/tools/qdrant_db.py`)
+- **`BaseVectorDB`**: Abstract interface for CRUD actions on a vector space (`create_collection`, `insert`, `search`, `delete`).
+- **`QdrantVectorDB`**: Integration with Qdrant. Fully supports local memory testing via `location=":memory:"`.
+- **Arize Phoenix Spans**: Implements OpenInference `RETRIEVER` semantic tracing, capturing queries, retrieved document contents, similarity scores, and payload metadata automatically.
+
+---
+
+## 8. Document Ingestion Pipeline
+
+### Ingestion Manager (`src/data/ingest.py`)
+- **`IngestionPipeline`**: Synchronizes a target local directory with Qdrant. Utilizes SHA-256 file hashes and timestamps to check for modifications.
+- **SQLite persistent queue**: Keeps track of file states in `files` and enqueued sync tasks in `ingest_jobs` tables inside `data/ingestion_state.db` to process actions sequentially.
+- **`chunk_text`**: Splits documents into digestible segments respecting sentence/paragraph boundaries.
+- **Deterministic UUIDs**: Encodes unique points in Qdrant using deterministic namespace UUIDs (`uuid.uuid5`) to prevent duplicate entry generation and facilitate seamless updates or deletions.

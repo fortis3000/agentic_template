@@ -24,10 +24,37 @@ class FileConstraints(BaseModel):
     max_files_per_message: int = 5
 
 
+class McpServerConfigSchema(BaseModel):
+    type: str = "stdio"  # "stdio" or "http"
+    command: str | None = None
+    args: list[str] = Field(default_factory=list)
+    env: dict[str, str] | None = None
+    url: str | None = None
+    headers: dict[str, str] | None = None
+    timeout: float = 30.0
+    sse_read_timeout: float = 300.0
+    terminate_on_close: bool = True
+    enabled_tools: list[str] | None = None
+    disabled_tools: list[str] | None = None
+
+
+class EmbeddingModelConfigSchema(BaseModel):
+    provider: str
+    model: str
+    dimensions: int | None = None
+    api_key: str | None = None
+    base_url: str | None = None
+
+
+class ToolSettingsSchema(BaseModel):
+    retry: RetryConfig | None = None
+
+
 class AgentConfigSchema(BaseModel):
     name: str
-    model: str
-    provider: str
+    model: str | None = None
+    provider: str = "google"
+    api_key: str | None = None
     base_url: str | None = None
     system_prompt_path: str | None = None
     system_prompt: str | None = None
@@ -38,8 +65,23 @@ class AgentConfigSchema(BaseModel):
     app_data_dir: str | None = None
     streaming: bool | None = None
     tools: list[str] = Field(default_factory=list)
-    mcp_servers: dict[str, Any] = Field(default_factory=dict)
+    mcp_servers: dict[str, McpServerConfigSchema] = Field(default_factory=dict)
+    embedding_model: EmbeddingModelConfigSchema | None = None
+    tool_settings: dict[str, ToolSettingsSchema] = Field(default_factory=dict)
     retry: RetryConfig = Field(default_factory=RetryConfig)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_mcp_servers(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            mcp_data = data.get("mcp_servers")
+            if isinstance(mcp_data, list):
+                new_mcp = {}
+                for server in mcp_data:
+                    name = server.get("name") or server.get("type", "stdio")
+                    new_mcp[name] = server
+                data["mcp_servers"] = new_mcp
+        return data
 
     acceptable_data_types: list[str] = Field(
         default_factory=lambda: ["image/png", "image/jpeg", "image/gif"]
