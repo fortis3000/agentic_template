@@ -31,6 +31,7 @@ lint = [
     "pre-commit",
     "sqlfluff",
     "yamllint",
+    "semgrep",
 ]
 test = [
     "pytest>=8.2.0",
