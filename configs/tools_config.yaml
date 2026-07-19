@@ -14,3 +14,16 @@ tools:
     config:
       spreadsheet_id: "1ZDWpuGhOs2vBxf4jpA7EjOr7U57B52n50-_p1qPevWE"
       credentials_path: null
+  search_vectordb:
+    type: "vectordb_search"
+    config:
+      collection_name: "default_collection"
+      embedding_model:
+        provider: "google"
+        model: "text-embedding-004"
+        dimensions: 768
+      vectordb:
+        type: "qdrant"
+        location: ":memory:"
+      allowed_search_fields: ["filepath", "chunk_index"]
+      allowed_answer_fields: ["text", "filepath", "chunk_index"]

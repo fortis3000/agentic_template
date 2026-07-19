@@ -5,15 +5,14 @@ import json
 import os
 import sqlite3
 import time
-import uuid
 from typing import Any
 
 import yaml
 from pydantic import BaseModel, Field
 
 from src.agents.embeddings import EmbeddingModelConfigSchema, EmbeddingModelFactory
-from src.tools.text_extractor import extract_text
 from src.tools.vectordb_base import VectorDBFactory
+from src.utils.ingestion_helper import ingest_document
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -30,6 +29,8 @@ class IngestionConfigSchema(BaseModel):
         default_factory=lambda: {"type": "qdrant", "host": "localhost", "port": 6333}
     )
     state_db_path: str = "data/ingestion_state.db"
+    chunking_strategy: str = "fixed"  # "fixed", "markdown", "semantic"
+    semantic_threshold: float = 0.5
 
 
 def chunk_text(text: str, chunk_size: int = 500, chunk_overlap: int = 50) -> list[str]:
@@ -308,11 +309,10 @@ class IngestionPipeline:
                     chunk_ids = json.loads(file_row["chunk_ids"])
                     await vectordb.delete(self.config.collection_name, chunk_ids)
 
-            # Extract, chunk and ingest
+            # Extract, chunk and ingest using shared utility
             with open(filepath, "rb") as f:
                 file_data = f.read()
 
-            # Resolve mime type
             ext = os.path.splitext(filepath)[1].lower()
             mime_type = "text/plain"
             if ext == ".pdf":
@@ -322,33 +322,14 @@ class IngestionPipeline:
             elif ext == ".html":
                 mime_type = "text/html"
 
-            text = extract_text(file_data, mime_type)
-            chunks = chunk_text(text, self.config.chunk_size, self.config.chunk_overlap)
-
-            if chunks:
-                # Batch embed
-                batch_res = await embed_client.embed_batch(chunks)
-                vectors = batch_res.embeddings
-
-                # Generate unique deterministic chunk IDs using uuid.uuid5 to ensure valid UUIDs for Qdrant
-                namespace = uuid.UUID("37000000-0000-0000-0000-000000000037")
-                chunk_ids = [
-                    str(uuid.uuid5(namespace, f"{filepath}_{idx}")) for idx in range(len(chunks))
-                ]
-
-                payloads = [
-                    {"text": chunk, "filepath": filepath, "chunk_index": idx}
-                    for idx, chunk in enumerate(chunks)
-                ]
-
-                await vectordb.insert(
-                    self.config.collection_name,
-                    ids=chunk_ids,
-                    vectors=vectors,
-                    payloads=payloads,
-                )
-            else:
-                chunk_ids = []
+            chunk_ids = await ingest_document(
+                filepath=filepath,
+                file_bytes=file_data,
+                mime_type=mime_type,
+                config=self.config,
+                vectordb=vectordb,
+                embed_client=embed_client,
+            )
 
             # Save / Update file state in SQLite
             file_hash = self._calculate_file_sha256(filepath)

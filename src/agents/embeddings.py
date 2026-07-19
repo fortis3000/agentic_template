@@ -3,6 +3,7 @@ import os
 from abc import ABC, abstractmethod
 from typing import Any, cast
 
+import httpx
 from google import genai
 from google.genai import types
 from openai import AsyncOpenAI
@@ -222,6 +223,61 @@ class OpenAIEmbeddingClient(BaseEmbeddingClient):
         )
 
 
+class OllamaEmbeddingClient(BaseEmbeddingClient):
+    """Ollama embedding client using raw HTTP calls."""
+
+    def __init__(self, config: EmbeddingModelConfigSchema):
+        super().__init__(config)
+        self.base_url = config.base_url or os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434"
+
+    async def embed_text(self, text: str) -> EmbeddingResponse:
+        logger.info(f"Generating Ollama embedding for text (model: {self.config.model})...")
+        if "text" not in self.config.supported_data_types:
+            raise ValueError(
+                "Ollama embedding client does not support 'text' input based on config."
+            )
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                f"{self.base_url}/api/embeddings",
+                json={
+                    "model": self.config.model,
+                    "prompt": text,
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+            values = data["embedding"]
+            dims = self.config.dimensions or len(values)
+            # Pad or truncate if dimensions config is defined and differs from len(values)
+            if self.config.dimensions and len(values) != self.config.dimensions:
+                if len(values) > self.config.dimensions:
+                    values = values[: self.config.dimensions]
+                else:
+                    values = values + [0.0] * (self.config.dimensions - len(values))
+
+            return EmbeddingResponse(
+                embedding=values,
+                dimensions=dims,
+                model_name=self.config.model,
+            )
+
+    async def embed_image(self, image_bytes: bytes, mime_type: str) -> EmbeddingResponse:
+        raise ValueError("Ollama local embedding models do not support multimodal/image inputs.")
+
+    async def embed_batch(self, texts: list[str]) -> BatchEmbeddingResponse:
+        logger.info(f"Generating Ollama embeddings for batch of {len(texts)} texts...")
+        tasks = [self.embed_text(t) for t in texts]
+        results = await asyncio.gather(*tasks)
+        embeddings_list = [r.embedding for r in results]
+        dims = self.config.dimensions or len(embeddings_list[0])
+        return BatchEmbeddingResponse(
+            embeddings=embeddings_list,
+            dimensions=dims,
+            model_name=self.config.model,
+        )
+
+
 class EmbeddingModelFactory:
     """Factory to create embedding model clients."""
 
@@ -232,5 +288,7 @@ class EmbeddingModelFactory:
             return GoogleEmbeddingClient(config)
         elif provider == "openai":
             return OpenAIEmbeddingClient(config)
+        elif provider == "ollama":
+            return OllamaEmbeddingClient(config)
         else:
             raise ValueError(f"Unsupported embedding provider: '{config.provider}'")

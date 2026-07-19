@@ -44,10 +44,13 @@ class EmbeddingModelConfigSchema(BaseModel):
     dimensions: int | None = None
     api_key: str | None = None
     base_url: str | None = None
+    supported_data_types: list[str] = Field(default_factory=lambda: ["text"])
 
 
 class ToolSettingsSchema(BaseModel):
     retry: RetryConfig | None = None
+    allowed_search_fields: list[str] = Field(default_factory=list)
+    allowed_answer_fields: list[str] = Field(default_factory=list)
 
 
 class AgentConfigSchema(BaseModel):

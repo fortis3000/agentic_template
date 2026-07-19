@@ -31,6 +31,46 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+ingestion_queue: asyncio.Queue = asyncio.Queue()
+ingestion_worker_tasks: dict[str, asyncio.Task | None] = {"worker": None}
+
+
+async def ingestion_worker() -> None:
+    """Background worker processing document ingestion tasks from the queue."""
+    logger.info("Starting background ingestion worker.")
+    while True:
+        try:
+            task_data = await ingestion_queue.get()
+        except asyncio.CancelledError:
+            logger.info("Ingestion worker cancelled.")
+            break
+
+        try:
+            filepath = task_data["filepath"]
+            file_bytes = task_data["file_bytes"]
+            mime_type = task_data["mime_type"]
+            config = task_data["config"]
+            vectordb = task_data["vectordb"]
+            embed_client = task_data["embed_client"]
+
+            logger.info(f"Processing background ingestion for: {filepath}")
+            from src.utils.ingestion_helper import ingest_document  # noqa: PLC0415
+
+            await ingest_document(
+                filepath=filepath,
+                file_bytes=file_bytes,
+                mime_type=mime_type,
+                config=config,
+                vectordb=vectordb,
+                embed_client=embed_client,
+            )
+            logger.info(f"Successfully processed background ingestion for: {filepath}")
+        except Exception as e:
+            logger.error(f"Error in background ingestion worker: {e}", exc_info=True)
+        finally:
+            ingestion_queue.task_done()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize Phoenix OpenTelemetry tracing (only if not running under pytest)
@@ -45,7 +85,20 @@ async def lifespan(app: FastAPI):
             logger.info("Arize Phoenix OpenTelemetry tracing initialized successfully.")
         except Exception as e:
             logger.error(f"Failed to initialize Arize Phoenix tracing: {e}")
+
+    # Start background ingestion worker
+    ingestion_worker_tasks["worker"] = asyncio.create_task(ingestion_worker())
+
     yield
+
+    # Cancel background ingestion worker on shutdown
+    w_task = ingestion_worker_tasks["worker"]
+    if w_task:
+        w_task.cancel()
+        try:
+            await w_task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(title="Agentic Template UI API", version="1.0.0", lifespan=lifespan)
@@ -613,7 +666,7 @@ def _process_file_attachments(
 
 
 @app.post("/api/agent/chat")
-async def chat(request: ChatRequest, background_tasks: BackgroundTasks):  # noqa: PLR0912
+async def chat(request: ChatRequest, background_tasks: BackgroundTasks):  # noqa: PLR0912, PLR0915
     """Triggers the agent execution in a background task."""
     session_id = request.session_id or str(uuid.uuid4())
 
@@ -678,6 +731,41 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):  # noqa
             file_constraints=file_constraints,
             session_upload_dir=session_upload_dir,
         )
+
+        # 4. Enqueue files for background ingestion if embedding_model is configured
+        if agent_cfg.embedding_model and file_contexts:
+            from src.agents.embeddings import EmbeddingModelFactory  # noqa: PLC0415
+            from src.tools.vectordb_base import VectorDBFactory  # noqa: PLC0415
+
+            class SimpleIngestConfig:
+                collection_name = "default_collection"
+                chunking_strategy = "fixed"
+                chunk_size = 500
+                chunk_overlap = 50
+                semantic_threshold = 0.5
+
+            embed_client = EmbeddingModelFactory.create(agent_cfg.embedding_model)
+            vectordb = VectorDBFactory.create("qdrant", location=":memory:")
+
+            await vectordb.create_collection(
+                SimpleIngestConfig.collection_name,
+                agent_cfg.embedding_model.dimensions or 768,
+            )
+
+            for ctx in file_contexts:
+                f_path = Path(ctx["path"])
+                if f_path.exists():
+                    f_bytes = f_path.read_bytes()
+                    await ingestion_queue.put(
+                        {
+                            "filepath": ctx["path"],
+                            "file_bytes": f_bytes,
+                            "mime_type": ctx["mime_type"],
+                            "config": SimpleIngestConfig,
+                            "vectordb": vectordb,
+                            "embed_client": embed_client,
+                        }
+                    )
 
     # Cancel any active running task for this session first
     if session_id in active_tasks:
