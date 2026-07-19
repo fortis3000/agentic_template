@@ -68,7 +68,11 @@ class VectorDBSearchTool(BaseTool):
                         )
 
             # Generate query embedding
-            if search_type == "image" and os.path.exists(query_text):
+            if search_type == "image":
+                if not os.path.exists(query_text):
+                    raise ValueError(
+                        f"Image search requires a valid local path to query image, but '{query_text}' does not exist."
+                    )
                 with open(query_text, "rb") as f:
                     image_bytes = f.read()
                 ext = os.path.splitext(query_text)[1].lower()

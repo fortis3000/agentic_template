@@ -2,7 +2,6 @@ import asyncio
 from collections.abc import Callable
 from typing import Any
 
-import nest_asyncio
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
@@ -129,14 +128,12 @@ class McpServerFactory:
 
     @classmethod
     def fetch_tools_sync(cls, config: McpServerConfigSchema) -> list[dict[str, Any]]:
-        """Synchronously fetch tools from an MCP server configuration."""
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
+        """Synchronously fetch tools from an MCP server configuration without blocking the main event loop."""
+        import concurrent.futures  # noqa: PLC0415
 
-        if loop and loop.is_running():
-            nest_asyncio.apply()
+        def run_in_thread():
             return asyncio.run(cls.fetch_tools(config))
-        else:
-            return asyncio.run(cls.fetch_tools(config))
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(run_in_thread)
+            return future.result()

@@ -81,7 +81,7 @@ async def test_google_embedding_client_generation():
     mock_values = MagicMock()
     mock_values.values = [0.1, 0.2, 0.3, 0.4]
     mock_res = MagicMock()
-    mock_res.embedding = mock_values
+    mock_res.embeddings = [mock_values]
 
     with patch.object(
         cast(Any, client).client.models, "embed_content", return_value=mock_res

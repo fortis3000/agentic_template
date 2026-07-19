@@ -105,15 +105,15 @@ class GoogleEmbeddingClient(BaseEmbeddingClient):
             ),
         )
         response: Any = raw_response
-        # response.embedding.values contains the floats
+        # response.embeddings[0].values contains the floats
         if (
-            not hasattr(response, "embedding")
-            or not response.embedding
-            or not response.embedding.values
+            not hasattr(response, "embeddings")
+            or not response.embeddings
+            or not response.embeddings[0].values
         ):
             raise ValueError("No embedding returned from Google API.")
 
-        values = response.embedding.values
+        values = response.embeddings[0].values
         dims = self.config.dimensions or len(values)
         return EmbeddingResponse(
             embedding=values,
@@ -139,13 +139,13 @@ class GoogleEmbeddingClient(BaseEmbeddingClient):
         )
         response: Any = raw_response
         if (
-            not hasattr(response, "embedding")
-            or not response.embedding
-            or not response.embedding.values
+            not hasattr(response, "embeddings")
+            or not response.embeddings
+            or not response.embeddings[0].values
         ):
             raise ValueError("No embedding returned from Google API.")
 
-        values = response.embedding.values
+        values = response.embeddings[0].values
         dims = self.config.dimensions or len(values)
         return EmbeddingResponse(
             embedding=values,
@@ -249,12 +249,12 @@ class OllamaEmbeddingClient(BaseEmbeddingClient):
             data = response.json()
             values = data["embedding"]
             dims = self.config.dimensions or len(values)
-            # Pad or truncate if dimensions config is defined and differs from len(values)
+            # Validate that dimensions match if specified in config
             if self.config.dimensions and len(values) != self.config.dimensions:
-                if len(values) > self.config.dimensions:
-                    values = values[: self.config.dimensions]
-                else:
-                    values = values + [0.0] * (self.config.dimensions - len(values))
+                raise ValueError(
+                    f"Ollama model '{self.config.model}' returned embedding of size {len(values)}, "
+                    f"which does not match the configured dimensions {self.config.dimensions}."
+                )
 
             return EmbeddingResponse(
                 embedding=values,

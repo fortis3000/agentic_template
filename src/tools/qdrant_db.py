@@ -1,3 +1,5 @@
+import asyncio
+import hashlib
 import json
 import re
 from typing import Any, cast
@@ -36,7 +38,7 @@ def generate_sparse_vector(text: str) -> SparseVector:
         word_counts[w] = word_counts.get(w, 0) + 1
 
     for w, count in word_counts.items():
-        idx = abs(hash(w)) % 10000
+        idx = int(hashlib.sha256(w.encode("utf-8")).hexdigest(), 16) % 10000
         indices.append(idx)
         values.append(float(count))
 
@@ -71,7 +73,12 @@ class QdrantVectorDB(BaseVectorDB):
         self.port = port
         self.kwargs = kwargs
 
-        key = f"{location or ''}:{host or ''}:{port or ''}:{url or ''}"
+        try:
+            loop_id = id(asyncio.get_running_loop())
+        except RuntimeError:
+            loop_id = None
+
+        key = f"{loop_id}:{location or ''}:{host or ''}:{port or ''}:{url or ''}"
         if key not in QdrantVectorDB._instances:
             if location:
                 logger.info(f"Initializing QdrantVectorDB in-memory (location: {location}).")

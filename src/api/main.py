@@ -734,22 +734,51 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):  # noqa
 
         # 4. Enqueue files for background ingestion if embedding_model is configured
         if agent_cfg.embedding_model and file_contexts:
+            # Load tools_config.yaml to get vectordb_search settings
+            tools_cfg = {}
+            tools_config_path = WORKSPACE_ROOT / "configs" / "tools_config.yaml"
+            if tools_config_path.exists():
+                try:
+                    with open(tools_config_path, "r", encoding="utf-8") as f:
+                        tools_data = yaml.safe_load(f) or {}
+                        tools_cfg = (
+                            tools_data.get("tools", {}).get("search_vectordb", {}).get("config", {})
+                        )
+                except Exception as e:
+                    logger.error(f"Failed to load tools config for ingestion: {e}")
+
+            collection_name = tools_cfg.get("collection_name", "default_collection")
+            vectordb_cfg = tools_cfg.get("vectordb", {"type": "qdrant", "location": ":memory:"})
+            embedding_cfg = tools_cfg.get("embedding_model")
+
+            from src.agents.config import EmbeddingModelConfigSchema  # noqa: PLC0415
             from src.agents.embeddings import EmbeddingModelFactory  # noqa: PLC0415
             from src.tools.vectordb_base import VectorDBFactory  # noqa: PLC0415
 
+            target_coll = collection_name
+
             class SimpleIngestConfig:
-                collection_name = "default_collection"
+                collection_name = target_coll
                 chunking_strategy = "fixed"
                 chunk_size = 500
                 chunk_overlap = 50
                 semantic_threshold = 0.5
 
-            embed_client = EmbeddingModelFactory.create(agent_cfg.embedding_model)
-            vectordb = VectorDBFactory.create("qdrant", location=":memory:")
+            if embedding_cfg:
+                emb_schema = EmbeddingModelConfigSchema.model_validate(embedding_cfg)
+                embed_client = EmbeddingModelFactory.create(emb_schema)
+                dimensions = emb_schema.dimensions or 768
+            else:
+                embed_client = EmbeddingModelFactory.create(agent_cfg.embedding_model)
+                dimensions = agent_cfg.embedding_model.dimensions or 768
+
+            db_type = vectordb_cfg.get("type", "qdrant")
+            db_params = {k: v for k, v in vectordb_cfg.items() if k != "type"}
+            vectordb = VectorDBFactory.create(db_type, **db_params)
 
             await vectordb.create_collection(
                 SimpleIngestConfig.collection_name,
-                agent_cfg.embedding_model.dimensions or 768,
+                dimensions,
             )
 
             for ctx in file_contexts:

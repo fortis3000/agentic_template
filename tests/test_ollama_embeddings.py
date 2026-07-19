@@ -36,3 +36,16 @@ async def test_ollama_embedding_client():
     # Test that embed_image raises ValueError
     with pytest.raises(ValueError, match="do not support multimodal"):
         await client.embed_image(b"fakebytes", "image/png")
+
+    # Test dimension mismatch raises ValueError
+    cfg_bad_dims = EmbeddingModelConfigSchema(
+        provider="ollama",
+        model="nomic-embed-text",
+        dimensions=5,  # Mismatches length 3 of returned mock
+        supported_data_types=["text"],
+    )
+    client_bad = EmbeddingModelFactory.create(cfg_bad_dims)
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = mock_response
+        with pytest.raises(ValueError, match="does not match the configured dimensions"):
+            await client_bad.embed_text("hello test")
