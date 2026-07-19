@@ -6,6 +6,7 @@ import inspect
 import io
 import json
 import re
+import shutil
 import sys
 import uuid
 from contextlib import asynccontextmanager
@@ -21,9 +22,10 @@ from pydantic import BaseModel, field_validator
 from pydantic.types import Base64Bytes
 
 from src.agents.base import AgentInputPart, ImagePart, TextPart
-from src.agents.config import AgentYamlConfig, ImageConstraints
+from src.agents.config import AgentYamlConfig, FileConstraints, ImageConstraints
 from src.agents.pydantic_ai import PydanticAIAgentGenerator
 from src.tools.base import ToolFactory
+from src.tools.text_extractor import extract_text
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -65,6 +67,8 @@ WORKSPACE_ROOT = Path(__file__).resolve().parent.parent.parent
 CONFIGS_DIR = WORKSPACE_ROOT / "configs"
 SESSIONS_DIR = WORKSPACE_ROOT / "data" / "sessions"
 MAX_PREVIEW_LENGTH = 60
+UPLOADS_DIR = WORKSPACE_ROOT / "data" / "uploads"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Ensure sessions directory exists
 SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
@@ -205,12 +209,20 @@ class RequestImagePart(BaseModel):
     mime_type: str | None = None
 
 
+class RequestFilePart(BaseModel):
+    data: Base64Bytes | None = None
+    path: Path | None = None
+    mime_type: str
+    filename: str
+
+
 class ChatRequest(BaseModel):
     session_id: str | None = None
     config_path: str = "configs/agent_config.yaml"
     query: str
     system_variables: dict[str, Any] = {"role": "Senior Assistant"}
     images: list[RequestImagePart] | None = None
+    files: list[RequestFilePart] | None = None
 
     @field_validator("session_id")
     @classmethod
@@ -318,6 +330,48 @@ def process_and_validate_image(
     return image_bytes, resolved_mime, resized_any
 
 
+def process_and_validate_file(
+    file_bytes: bytes,
+    filename: str,
+    mime_type: str,
+    constraints: FileConstraints,
+) -> tuple[str, str, str]:
+    """Validates file constraints and extracts text content.
+
+    Returns:
+        A tuple of (extracted_text, filename, mime_type).
+    """
+    acceptable_types = constraints.acceptable_file_types
+    max_size = constraints.max_file_size_bytes
+
+    if mime_type not in acceptable_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type: {mime_type}. Allowed types: {', '.join(acceptable_types)}",
+        )
+
+    if len(file_bytes) > max_size:
+        max_mb = max_size / (1024 * 1024)
+        file_mb = len(file_bytes) / (1024 * 1024)
+        raise HTTPException(
+            status_code=400,
+            detail=f"File '{filename}' size ({file_mb:.1f} MB) exceeds the maximum allowed size of {max_mb:.0f} MB.",
+        )
+
+    try:
+        extracted_text = extract_text(file_bytes, mime_type)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to extract text from '{filename}': {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to extract text from '{filename}': {str(e)}",
+        )
+
+    return extracted_text, filename, mime_type
+
+
 # Session helper functions
 def get_session_file(session_id: str) -> Path:
     if not SESSION_ID_PATTERN.match(session_id):
@@ -391,6 +445,9 @@ def get_config_detail(config_path: str):
             "max_image_height": validated_config.agent.max_image_height,
             "min_image_width": validated_config.agent.min_image_width,
             "min_image_height": validated_config.agent.min_image_height,
+            "acceptable_file_types": validated_config.agent.acceptable_file_types,
+            "max_file_size_bytes": validated_config.agent.max_file_size_bytes,
+            "max_files_per_message": validated_config.agent.max_files_per_message,
         }
     except Exception as e:
         logger.error(f"Failed to load config details for {config_path}: {e}")
@@ -446,6 +503,12 @@ def delete_session(session_id: str):
         file_path = get_session_file(session_id)
         if file_path.exists():
             file_path.unlink()
+
+            # 3. Delete uploaded files for the session
+            session_upload_dir = UPLOADS_DIR / session_id
+            if session_upload_dir.exists():
+                shutil.rmtree(session_upload_dir, ignore_errors=True)
+
             return {"session_id": session_id, "status": "deleted"}
         else:
             raise HTTPException(status_code=404, detail="Session history not found")
@@ -477,8 +540,80 @@ def get_files():
     return {"files": files}
 
 
+@app.get("/api/files/uploads/{session_id}")
+def get_uploaded_files(session_id: str):
+    """Lists uploaded files for a specific session."""
+    validate_session_id(session_id)
+    session_upload_dir = UPLOADS_DIR / session_id
+    if not session_upload_dir.exists():
+        return {"files": []}
+
+    files = []
+    for file in session_upload_dir.iterdir():
+        if file.is_file():
+            files.append(
+                {
+                    "filename": file.name,
+                    "size": file.stat().st_size,
+                    "uploaded_at": file.stat().st_mtime,
+                }
+            )
+    return {"files": files}
+
+
+def _process_file_attachments(
+    files: list[RequestFilePart],
+    file_constraints: FileConstraints,
+    session_upload_dir: Path,
+) -> list[dict[str, Any]]:
+    """Validates, extracts text from, and persists uploaded file attachments."""
+    session_upload_dir.mkdir(parents=True, exist_ok=True)
+    file_contexts: list[dict[str, Any]] = []
+
+    for file_part in files:
+        if not file_part.data and not file_part.path:
+            raise HTTPException(
+                status_code=400, detail="FilePart must have either data or path defined."
+            )
+
+        if file_part.data:
+            file_bytes = file_part.data
+        else:
+            if file_part.path is None:
+                raise HTTPException(status_code=400, detail="File path must not be None.")
+            abs_path = Path(file_part.path).resolve()
+            if not abs_path.exists():
+                raise HTTPException(
+                    status_code=400, detail=f"File path does not exist: {file_part.path}"
+                )
+            file_bytes = abs_path.read_bytes()
+
+        extracted_text, fname, fmime = process_and_validate_file(
+            file_bytes=file_bytes,
+            filename=file_part.filename,
+            mime_type=file_part.mime_type,
+            constraints=file_constraints,
+        )
+
+        # Save raw file to uploads directory
+        save_path = session_upload_dir / file_part.filename
+        save_path.write_bytes(file_bytes)
+
+        file_contexts.append(
+            {
+                "filename": fname,
+                "mime_type": fmime,
+                "size": len(file_bytes),
+                "path": str(save_path),
+                "extracted_text": extracted_text,
+            }
+        )
+
+    return file_contexts
+
+
 @app.post("/api/agent/chat")
-async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
+async def chat(request: ChatRequest, background_tasks: BackgroundTasks):  # noqa: PLR0912
     """Triggers the agent execution in a background task."""
     session_id = request.session_id or str(uuid.uuid4())
 
@@ -524,6 +659,26 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
                 resized_any = True
             processed_images.append(ImagePart(data=processed_bytes, mime_type=resolved_mime))
 
+    # 3. Validate and process attached files
+    file_contexts: list[dict[str, Any]] = []
+    if request.files:
+        file_constraints = agent_cfg.file_constraints
+        if len(request.files) > file_constraints.max_files_per_message:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Too many files. Maximum {file_constraints.max_files_per_message}"
+                    " files per message."
+                ),
+            )
+
+        session_upload_dir = UPLOADS_DIR / session_id
+        file_contexts = _process_file_attachments(
+            files=request.files,
+            file_constraints=file_constraints,
+            session_upload_dir=session_upload_dir,
+        )
+
     # Cancel any active running task for this session first
     if session_id in active_tasks:
         active_tasks[session_id].cancel()
@@ -544,6 +699,7 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
             system_variables=request.system_variables,
             images=processed_images,
             resized_any=resized_any,
+            file_contexts=file_contexts,
         )
     )
     active_tasks[session_id] = task
@@ -558,6 +714,7 @@ async def run_agent_in_background(  # noqa: PLR0912, PLR0915
     system_variables: dict[str, Any] | None = None,
     images: list[ImagePart] | None = None,
     resized_any: bool = False,
+    file_contexts: list[dict[str, Any]] | None = None,
     config_path: str | None = None,
 ):
     """Runs agent execution, saves logs, and pumps events into the active stream queue."""
@@ -601,6 +758,18 @@ async def run_agent_in_background(  # noqa: PLR0912, PLR0915
                     )
             if serialized_images:
                 user_message["images"] = serialized_images
+
+        if file_contexts:
+            user_message["files"] = [
+                {
+                    "filename": fc["filename"],
+                    "mime_type": fc["mime_type"],
+                    "size": fc["size"],
+                    "path": fc["path"],
+                }
+                for fc in file_contexts
+            ]
+
         history.append(user_message)
         save_session_history(session_id, history)
 
@@ -645,6 +814,26 @@ async def run_agent_in_background(  # noqa: PLR0912, PLR0915
             )
         else:
             user_prompt = query
+
+        # Prepend file content blocks to the user prompt
+        if file_contexts:
+            file_blocks = []
+            for fc in file_contexts:
+                file_blocks.append(f"[FILE: {fc['filename']}]\n{fc['extracted_text']}\n[/FILE]")
+            file_prefix = "\n\n".join(file_blocks) + "\n\n"
+            if prompt_mgr and user_prompt_src:
+                user_prompt = file_prefix + user_prompt
+            else:
+                user_prompt = file_prefix + user_prompt
+
+        if file_contexts and session_id in active_streams:
+            count = len(file_contexts)
+            await active_streams[session_id].put(
+                {
+                    "event": "info",
+                    "text": f"{count} file(s) uploaded and processed.",
+                }
+            )
 
         inputs: list[AgentInputPart] = [TextPart(text=user_prompt)]
         if images:

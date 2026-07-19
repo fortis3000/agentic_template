@@ -16,8 +16,9 @@ dependencies = [
     "google-auth>=2.55.0",
     "pyyaml",
     "nest-asyncio",
-    "semgrep>=1.79.0",
     "pillow>=10.0.0",
+    # NOTE: PyMuPDF is licensed under AGPL-3.0. See https://pymupdf.readthedocs.io/en/latest/about.html#license
+    "pymupdf>=1.24.0",
 ]
 
 [project.optional-dependencies]

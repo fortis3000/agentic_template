@@ -17,6 +17,13 @@ agent:
   max_image_height: 1024
   min_image_width: 128
   min_image_height: 128
+  acceptable_file_types:
+    - "application/pdf"
+    - "text/plain"
+    - "text/markdown"
+    - "text/html"
+  max_file_size_bytes: 20971520  # 20 MB
+  max_files_per_message: 5
   tools:
     - "get_weather"
     - "read_google_sheet"

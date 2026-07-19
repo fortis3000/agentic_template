@@ -18,7 +18,7 @@ graph TD
     subgraph Layer2["Layer 2: SDK Abstraction"]
         C["BaseAgent & BaseAgentGenerator"]
         D["PromptManager"]
-        E["TextPart & ImagePart (Multimodal)"]
+        E["TextPart, ImagePart & FilePart (Multimodal)"]
     end
 
     subgraph Layer3["Layer 3: Agent Backends"]
@@ -136,15 +136,16 @@ graph TD
     end
 
     subgraph Network["Network Communication"]
-        HTTP["REST HTTP (GET/POST)<br/>- /api/configs<br/>- /api/sessions<br/>- /api/agent/chat<br/>- /api/agent/stop"]
-        SSE["Server-Sent Events (SSE)<br/>- /api/agent/stream/{session_id}"]
+        HTTP["REST HTTP (GET/POST)\n- /api/configs\n- /api/sessions\n- /api/agent/chat\n- /api/agent/stop\n- /api/files/uploads/{session_id}"]
+        SSE["Server-Sent Events (SSE)\n- /api/agent/stream/{session_id}"]
     end
 
     subgraph BackendAPI["Backend API (FastAPI)"]
         API["FastAPI App (main.py)"]
         StreamRouter["SSE Event Publisher & Streams"]
         BackgroundTasks["Background Runner Task"]
-        Decorator["Tool Interceptor Decorator<br/>(make_stream_tool)"]
+        TextExtractor["Text Extractor\n(PDF, TXT, MD, HTML)"]
+        Decorator["Tool Interceptor Decorator\n(make_stream_tool)"]
     end
 
     subgraph AgentEngine["Agent Engine"]
@@ -154,6 +155,7 @@ graph TD
 
     subgraph WorkspaceDisk["Local Workspace Storage"]
         SessionsDir["data/sessions/ (JSON logs)"]
+        UploadsDir["data/uploads/ (Uploaded files)"]
         DataDir["data/ (Generated outputs)"]
     end
 
@@ -182,6 +184,8 @@ graph TD
 
     %% Persistence
     API <-->|Read/Write history| SessionsDir
+    API <-->|Read/Write uploads| UploadsDir
     API <-->|Read generated files| DataDir
     Tools -->|Writes outputs| DataDir
+    API -->|Text extraction| TextExtractor
 ```

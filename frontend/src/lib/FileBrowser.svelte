@@ -15,7 +15,11 @@
 
   const getFileIcon = (name: string) => {
     return (
-      name.endsWith(".txt") || name.endsWith(".md") || name.endsWith(".json")
+      name.endsWith(".txt") ||
+      name.endsWith(".md") ||
+      name.endsWith(".json") ||
+      name.endsWith(".pdf") ||
+      name.endsWith(".html")
     );
   };
 </script>

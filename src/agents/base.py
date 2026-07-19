@@ -42,8 +42,32 @@ class ImagePart(BaseModel):
         return cls(data=data, mime_type=mime_type)
 
 
+class FilePart(BaseModel):
+    """Represents a text file input part for the agent."""
+
+    data: bytes | None = None
+    path: FilePath | None = None
+    mime_type: str
+    filename: str
+
+    @model_validator(mode="after")
+    def validate_has_data_or_path(self) -> "FilePart":
+        if self.data is None and self.path is None:
+            raise ValueError("FilePart must have either data or path defined.")
+        return self
+
+    @classmethod
+    def from_file(cls, path: str, mime_type: str, filename: str | None = None) -> "FilePart":
+        p = Path(path)
+        return cls(path=p, mime_type=mime_type, filename=filename or p.name)
+
+    @classmethod
+    def from_bytes(cls, data: bytes, mime_type: str, filename: str) -> "FilePart":
+        return cls(data=data, mime_type=mime_type, filename=filename)
+
+
 # Union type representing any valid input part to an agent.
-AgentInputPart = Union[TextPart, ImagePart, str]
+AgentInputPart = Union[TextPart, ImagePart, FilePart, str]
 
 
 @dataclass

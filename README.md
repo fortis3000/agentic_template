@@ -56,6 +56,7 @@ The template provides an SDK-agnostic agent interface and generator that spawns 
 
 - **`src/agents/`**: Core definitions, abstractions, prompt management, and SDK wrappers.
 - **`src/prompts/`**: Directory for reusable system and user prompt templates.
+- **`src/tools/`**: Custom tools and functional integrations (including text file extraction).
 - **`configs/`**: Directory for agent YAML configuration files.
 
 ### Spawning and Calling Agents (Usage Example)
@@ -91,6 +92,11 @@ async def main():
     # 5. Multimodal Call (Text and Image)
     # image = ImagePart.from_file("data/raw/example.png")
     # response = await agent.call(inputs=["Describe this image", image])
+
+    # 6. File Upload (Text Extraction)
+    # from src.agents import FilePart
+    # file = FilePart.from_file("data/raw/report.pdf", mime_type="application/pdf")
+    # response = await agent.call(inputs=["Summarize this document", file])
 
 if __name__ == "__main__":
     asyncio.run(main())

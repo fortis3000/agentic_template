@@ -5,6 +5,7 @@
     Bot,
     User,
     Image as ImageIcon,
+    FileText,
     X,
   } from "@lucide/svelte";
   import type { AgentController } from "./agent.svelte.ts";
@@ -14,8 +15,12 @@
   let messagesEnd = $state<HTMLDivElement | null>(null);
 
   let fileInput = $state<HTMLInputElement | null>(null);
+  let fileFileInput = $state<HTMLInputElement | null>(null);
   let attachedImages = $state<
     { data: string; mime_type: string; name: string; willResize?: boolean }[]
+  >([]);
+  let attachedFiles = $state<
+    { data: string; mime_type: string; filename: string; size: number }[]
   >([]);
   let errorMessage = $state("");
 
@@ -29,13 +34,16 @@
   function handleSubmit(e: Event) {
     e.preventDefault();
     if (
-      (!input.trim() && attachedImages.length === 0) ||
+      (!input.trim() &&
+        attachedImages.length === 0 &&
+        attachedFiles.length === 0) ||
       controller.isGenerating
     )
       return;
-    controller.sendMessage(input, attachedImages);
+    controller.sendMessage(input, attachedImages, attachedFiles);
     input = "";
     attachedImages = [];
+    attachedFiles = [];
     errorMessage = "";
   }
 
@@ -117,6 +125,91 @@
   function removeImage(index: number) {
     attachedImages = attachedImages.filter((_, idx) => idx !== index);
   }
+
+  function handleFileFileChange(e: Event) {
+    errorMessage = "";
+    const files = (e.target as HTMLInputElement).files;
+    if (!files || files.length === 0) return;
+
+    const acceptableTypes = controller.activeConfigDetails
+      ?.acceptable_file_types || [
+      "application/pdf",
+      "text/plain",
+      "text/markdown",
+      "text/html",
+    ];
+    const maxSize =
+      controller.activeConfigDetails?.max_file_size_bytes || 20971520;
+    const maxCount = controller.activeConfigDetails?.max_files_per_message || 5;
+
+    const filesArray = Array.from(files);
+
+    // Check total count
+    if (attachedFiles.length + filesArray.length > maxCount) {
+      errorMessage = `Too many files. Maximum ${maxCount} files per message.`;
+      if (fileFileInput) fileFileInput.value = "";
+      return;
+    }
+
+    for (const file of filesArray) {
+      if (!acceptableTypes.includes(file.type)) {
+        errorMessage = `Unsupported file type: ${file.type}. Allowed types: ${acceptableTypes.join(", ")}`;
+        if (fileFileInput) fileFileInput.value = "";
+        return;
+      }
+      if (file.size > maxSize) {
+        const maxMb = (maxSize / (1024 * 1024)).toFixed(0);
+        const fileMb = (file.size / (1024 * 1024)).toFixed(1);
+        errorMessage = `File "${file.name}" (${fileMb} MB) exceeds the maximum size of ${maxMb} MB.`;
+        if (fileFileInput) fileFileInput.value = "";
+        return;
+      }
+    }
+
+    const readPromises = filesArray.map((file) => {
+      return new Promise<{
+        data: string;
+        mime_type: string;
+        filename: string;
+        size: number;
+      }>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          resolve({
+            data: event.target?.result as string,
+            mime_type: file.type,
+            filename: file.name,
+            size: file.size,
+          });
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    Promise.all(readPromises).then((results) => {
+      const newFiles = [...attachedFiles];
+      results.forEach((f) => {
+        if (!newFiles.some((existing) => existing.filename === f.filename)) {
+          newFiles.push(f);
+        }
+      });
+      attachedFiles = newFiles;
+    });
+
+    if (fileFileInput) fileFileInput.value = "";
+  }
+
+  function removeFile(index: number) {
+    attachedFiles = attachedFiles.filter((_, idx) => idx !== index);
+  }
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+  };
 </script>
 
 <div class="chat-panel flex flex-column h-full">
@@ -166,6 +259,19 @@
                     alt="User uploaded attachment"
                     class="attached-msg-img"
                   />
+                {/each}
+              </div>
+            {/if}
+            {#if msg.files && msg.files.length > 0}
+              <div class="message-files flex flex-wrap gap-2 mt-2">
+                {#each msg.files as file}
+                  <div class="file-chip flex align-items-center gap-1">
+                    <FileText size={14} />
+                    <span class="file-chip-name">{file.filename}</span>
+                    <span class="file-chip-size"
+                      >({formatFileSize(file.size)})</span
+                    >
+                  </div>
                 {/each}
               </div>
             {/if}
@@ -247,6 +353,30 @@
     </div>
   {/if}
 
+  {#if attachedFiles.length > 0}
+    <div class="attached-files-preview flex flex-wrap gap-2 p-2 border-top">
+      {#each attachedFiles as file, idx}
+        <div class="file-preview-chip flex align-items-center gap-2">
+          <FileText size={14} class="text-secondary" />
+          <span class="file-preview-name text-sm font-mono"
+            >{file.filename}</span
+          >
+          <span class="file-preview-size text-xs text-muted"
+            >({formatFileSize(file.size)})</span
+          >
+          <button
+            type="button"
+            class="remove-file-btn flex align-items-center justify-content-center"
+            onclick={() => removeFile(idx)}
+            title="Remove file"
+          >
+            <X size={10} />
+          </button>
+        </div>
+      {/each}
+    </div>
+  {/if}
+
   <form
     class="chat-input-container p-3 flex gap-2 align-items-center"
     onsubmit={handleSubmit}
@@ -259,6 +389,14 @@
       multiple
       style="display: none;"
     />
+    <input
+      type="file"
+      bind:this={fileFileInput}
+      onchange={handleFileFileChange}
+      accept=".pdf,.txt,.md,.html"
+      multiple
+      style="display: none;"
+    />
     <button
       type="button"
       class="attach-btn flex align-items-center justify-content-center"
@@ -267,6 +405,15 @@
       title="Attach Image"
     >
       <ImageIcon size={16} />
+    </button>
+    <button
+      type="button"
+      class="attach-btn flex align-items-center justify-content-center"
+      onclick={() => fileFileInput?.click()}
+      disabled={controller.isGenerating}
+      title="Attach File (PDF, TXT, MD, HTML)"
+    >
+      <FileText size={16} />
     </button>
     <input
       type="text"
@@ -278,7 +425,9 @@
     <button
       type="submit"
       class="send-btn flex align-items-center justify-content-center"
-      disabled={(!input.trim() && attachedImages.length === 0) ||
+      disabled={(!input.trim() &&
+        attachedImages.length === 0 &&
+        attachedFiles.length === 0) ||
         controller.isGenerating}
     >
       <Send size={16} />

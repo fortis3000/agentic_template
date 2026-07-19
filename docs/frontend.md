@@ -49,6 +49,8 @@ The dashboard is composed of four main custom Svelte components, each designed f
   - Streams token-by-token agent text generation in real-time.
   - Safe HTML rendering of agent Markdown outputs and monospaced code blocks using the `marked` library.
   - Integrates an execution cancellation "Stop" button that triggers backend thread interruption.
+  - Supports text file attachments (PDF, TXT, Markdown, HTML) with client-side validation of file type, size, and count limits.
+  - Renders attached file metadata as compact chips in message bubbles with file icon, name, and size.
 
 ### 3. `TracePanel`
 - **Location**: `src/lib/TracePanel.svelte`
@@ -73,8 +75,8 @@ The dashboard is composed of four main custom Svelte components, each designed f
 ### `AgentController` class (`src/lib/agent.svelte.ts`)
 The core UI application logic and API bindings are encapsulated in the Svelte 5 reactive class `AgentController`. It exposes:
 - **Reactive State (Runes)**: Uses `$state` runes for `messages`, `toolCalls`, `isGenerating`, `configs`, `sessions`, and `files` to trigger highly targeted, performant DOM updates without virtual DOM overhead.
-- **SSE Stream Reader**: Opens a readable fetch stream on `GET /api/agent/stream/{session_id}`. Reads the raw text buffer, splits payloads by `\n\n` boundaries, parses event types (`token`, `tool_start`, `tool_complete`, `done`, `cancelled`), and propagates incremental updates directly to Svelte reactive state variables.
-- **REST Operations**: Handles standard HTTP triggers for fetching list data (`/api/configs`, `/api/sessions`, `/api/files`), retrieving history by session, starting chat execution, and sending stop signals.
+- **SSE Stream Reader**: Opens a readable fetch stream on `GET /api/agent/stream/{session_id}`. Reads the raw text buffer, splits payloads by `\n\n` boundaries, parses event types (`token`, `tool_start`, `tool_complete`, `done`, `cancelled`, `info`), and propagates incremental updates directly to Svelte reactive state variables.
+- **REST Operations**: Handles standard HTTP triggers for fetching list data (`/api/configs`, `/api/sessions`, `/api/files`, `/api/files/uploads/{session_id}`), retrieving history by session, starting chat execution (with optional image and file attachments), and sending stop signals.
 
 ---
 

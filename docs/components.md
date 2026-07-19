@@ -33,17 +33,27 @@ This document provides a technical walkthrough of the core components in the Sta
 
 - **`BaseAgent`**: Abstract interface enforcing asynchronous call conventions (`call`, `call_stream`, and synchronous wrapper `call_sync`) for all agent implementations.
 - **`BaseAgentGenerator`**: Abstract factory interface for parsing configurations and spawning appropriate `BaseAgent` instances.
-- **`AgentInputPart`**: Support for multimodal payloads, supporting `TextPart` (text prompt wrappers) and `ImagePart` (raw bytes or absolute path references with mime-types).
+- **`AgentInputPart`**: Support for multimodal payloads, supporting `TextPart` (text prompt wrappers), `ImagePart` (raw bytes or absolute path references with mime-types), and `FilePart` (text file references with extracted content support).
 - **`ToolConfig` & `McpServerConfig`**: Interfaces for registering local tool functions or Model Context Protocol (MCP) server endpoints.
 
 ### Configuration Parsing (`src/agents/config.py`)
 
 - **`AgentConfigSchema`**: Pydantic schema representing raw YAML keys for strict parsing and input validation.
 - **`AgentYamlConfig`**: Holds validated and fully resolved agent attributes used by concrete generators.
+- **`ImageConstraints`**: Pydantic model defining image upload limits (acceptable types, dimensions).
+- **`FileConstraints`**: Pydantic model defining text file upload limits (acceptable MIME types, max size, max files per message).
 
 ### Prompt Resolution (`src/agents/prompt_manager.py`)
 
 - **`PromptManager`**: Locates, caches, and compiles raw text templates into active prompts. Implements f-string replacements to merge system variables or session constraints dynamically before calling the model.
+
+### Text Extraction (`src/tools/text_extractor.py`)
+
+- **`extract_text(data, mime_type)`**: Dispatches bytes to the appropriate extractor based on MIME type.
+  - **PDF** → Page-by-page extraction via PyMuPDF (AGPL-3.0 licensed).
+  - **TXT** → UTF-8 decode with Latin-1 fallback.
+  - **Markdown** → Raw passthrough (the LLM understands Markdown natively).
+  - **HTML** → Multi-step pipeline: strips `<script>` and `<style>` blocks, replaces `<img>` tags with `[Image: <alt>]` placeholders, strips remaining HTML tags, collapses whitespace.
 
 ---
 

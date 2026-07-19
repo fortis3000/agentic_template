@@ -5,6 +5,7 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   images?: { data: string; mime_type: string }[];
+  files?: { filename: string; mime_type: string; size: number }[];
 }
 
 export interface ToolCall {
@@ -34,6 +35,9 @@ export interface AgentConfigDetails {
   max_image_height: number;
   min_image_width: number;
   min_image_height: number;
+  acceptable_file_types: string[];
+  max_file_size_bytes: number;
+  max_files_per_message: number;
 }
 
 const API_BASE = "http://localhost:8000";
@@ -55,6 +59,14 @@ export class AgentController {
     max_image_height: 1024,
     min_image_width: 128,
     min_image_height: 128,
+    acceptable_file_types: [
+      "application/pdf",
+      "text/plain",
+      "text/markdown",
+      "text/html",
+    ],
+    max_file_size_bytes: 20971520,
+    max_files_per_message: 5,
   });
 
   private abortController: AbortController | null = null;
@@ -185,6 +197,12 @@ export class AgentController {
   async sendMessage(
     query: string,
     attachedImages: { data: string; mime_type: string }[] = [],
+    attachedFiles: {
+      data: string;
+      mime_type: string;
+      filename: string;
+      size: number;
+    }[] = [],
   ) {
     this.isGenerating = true;
     this.toolCalls = []; // reset tools
@@ -193,7 +211,19 @@ export class AgentController {
     // Add user message
     this.messages = [
       ...this.messages,
-      { role: "user", content: query, images: attachedImages },
+      {
+        role: "user",
+        content: query,
+        images: attachedImages.length > 0 ? attachedImages : undefined,
+        files:
+          attachedFiles.length > 0
+            ? attachedFiles.map((f) => ({
+                filename: f.filename,
+                mime_type: f.mime_type,
+                size: f.size,
+              }))
+            : undefined,
+      },
     ];
 
     let currentSessId = this.sessionId;
@@ -212,6 +242,19 @@ export class AgentController {
         };
       });
 
+      const processedFiles = attachedFiles.map((file) => {
+        let rawData = file.data;
+        const commaIdx = rawData.indexOf(",");
+        if (commaIdx !== -1) {
+          rawData = rawData.substring(commaIdx + 1);
+        }
+        return {
+          data: rawData,
+          mime_type: file.mime_type,
+          filename: file.filename,
+        };
+      });
+
       // 1. Post request to initialize execution task
       const response = await fetch(`${API_BASE}/api/agent/chat`, {
         method: "POST",
@@ -221,6 +264,7 @@ export class AgentController {
           config_path: this.selectedConfig,
           query,
           images: processedImages.length > 0 ? processedImages : undefined,
+          files: processedFiles.length > 0 ? processedFiles : undefined,
         }),
       });
 

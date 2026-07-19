@@ -16,6 +16,14 @@ class ImageConstraints(BaseModel):
     min_image_height: int = 128
 
 
+class FileConstraints(BaseModel):
+    acceptable_file_types: list[str] = Field(
+        default_factory=lambda: ["application/pdf", "text/plain", "text/markdown", "text/html"]
+    )
+    max_file_size_bytes: int = 20_971_520  # 20 MB
+    max_files_per_message: int = 5
+
+
 class AgentConfigSchema(BaseModel):
     name: str
     model: str
@@ -41,6 +49,12 @@ class AgentConfigSchema(BaseModel):
     min_image_width: int = 128
     min_image_height: int = 128
 
+    acceptable_file_types: list[str] = Field(
+        default_factory=lambda: ["application/pdf", "text/plain", "text/markdown", "text/html"]
+    )
+    max_file_size_bytes: int = 20_971_520  # 20 MB
+    max_files_per_message: int = 5
+
     @property
     def image_constraints(self) -> ImageConstraints:
         return ImageConstraints(
@@ -49,6 +63,14 @@ class AgentConfigSchema(BaseModel):
             max_image_height=self.max_image_height,
             min_image_width=self.min_image_width,
             min_image_height=self.min_image_height,
+        )
+
+    @property
+    def file_constraints(self) -> FileConstraints:
+        return FileConstraints(
+            acceptable_file_types=self.acceptable_file_types,
+            max_file_size_bytes=self.max_file_size_bytes,
+            max_files_per_message=self.max_files_per_message,
         )
 
     @model_validator(mode="before")
