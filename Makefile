@@ -1,4 +1,4 @@
-.PHONY: precommit install_dev_dependencies docker-build docker-run docker-up docker-down
+.PHONY: precommit install_dev_dependencies docker-build docker-run docker-up docker-down mutate
 
 # Install dev dependencies
 install_dev_dependencies:
@@ -8,6 +8,11 @@ install_dev_dependencies:
 # Local precommit
 precommit:
 	uv run pre-commit run --all-files
+
+# Local mutation testing
+mutate:
+	PYTHONPATH=src:.. uv run python -O -m mutmut run
+
 
 # Docker: build image from project root
 docker-build:
