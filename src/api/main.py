@@ -75,15 +75,17 @@ async def ingestion_worker() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize Phoenix OpenTelemetry tracing (only if enabled via env and not under pytest)
-    if "pytest" not in sys.modules and os.getenv("ENABLE_PHOENIX", "false").lower() == "true":
+    if "pytest" not in sys.modules and os.getenv("ENABLE_PHOENIX", "true").lower() == "true":
         try:
             from phoenix.otel import register  # noqa: PLC0415
 
+            collector_endpoint = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:4317")
             register(
                 project_name="agentic-template",
+                endpoint=collector_endpoint,
                 auto_instrument=True,
             )
-            logger.info("Arize Phoenix OpenTelemetry tracing initialized successfully.")
+            logger.info(f"Arize Phoenix OpenTelemetry tracing initialized to {collector_endpoint}.")
         except Exception as e:
             logger.error(f"Failed to initialize Arize Phoenix tracing: {e}")
 
