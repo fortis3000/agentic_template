@@ -12,11 +12,13 @@ The backend agent system runs on **Python 3.13** (or later) and uses the **Astra
 - **Configuration (`pyproject.toml`)**: Lists core dependencies (such as `pydantic-ai`, `google-genai`, `fastapi`) and optional groups (`lint`, `test`, `dev`).
 - **Synchronizing Dependencies**:
   To sync all package dependencies (including dev and linting tools) into a local `.venv` environment, execute:
-  ```bash
+  
+```bash
   uv sync --extra all
   ```
+  
 - **Adding Packages**:
-  To add or update a python package, modify `pyproject.toml` and run `uv lock` / `uv sync`.
+To add or update a python package, modify `pyproject.toml` and run `uv lock` / `uv sync`.
 
 ### Configuration Variables (`.env`)
 Secrets and local runtime settings are loaded from the root `.env` file into python using `python-dotenv`.
@@ -39,22 +41,27 @@ The frontend dashboard runs on **Node.js 22+** (Alpine or Slim) and uses **npm**
 - **Configuration (`package.json`)**: Contains npm dependencies (like `svelte`, `@lucide/svelte`, `marked`) and development tools (like `typescript`, `vite`, `svelte-check`, `prettier`).
 - **Installing Dependencies**:
   To resolve node dependencies locally, navigate to the frontend directory and run:
-  ```bash
+  
+```bash
   cd frontend
   npm install
   ```
+  
 - **Linting & Code Style**:
-  The frontend enforces checks using `oxlint` (extremely fast linter) and `prettier` (styling checks):
-  ```bash
+The frontend enforces checks using `oxlint` (extremely fast linter) and `prettier` (styling checks):
+  
+```bash
   npm run lint         # Check linting errors
   npm run format:check # Validate code formatting
   npm run format:write # Apply Prettier formatting
   ```
+  
 - **Type Checking**:
   Strict TypeScript type verification is executed using:
-  ```bash
-  npx --prefix frontend tsc -b frontend/tsconfig.json
-  ```
+
+```bash
+npx --prefix frontend tsc -b frontend/tsconfig.json
+```
 
 ---
 

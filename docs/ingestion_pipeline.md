@@ -103,18 +103,21 @@ The VectorDB searches and retrievals are instrumented using OpenTelemetry and Op
 
 ### Execution Commands
 * **CLI Ingestion**: Run the ingestion synchronization script on a source directory of documents:
+
   ```bash
   uv run python -m src.ingestion.pipeline --config configs/ingestion_config.yaml
   ```
 
 * **Start Vector Database**: Run the containerized Qdrant instance locally:
-  ```bash
+  
+```bash
   docker-compose up -d qdrant
   ```
 
 ### Verification Checks
 1. **Verify State DB Delta Tracking**:
    Query the SQLite delta state database to verify file changes and chunk mappings are stored correctly:
+
    ```bash
    sqlite3 data/ingestion_state.db "SELECT * FROM files;"
    sqlite3 data/ingestion_state.db "SELECT * FROM ingest_jobs;"
@@ -122,7 +125,8 @@ The VectorDB searches and retrievals are instrumented using OpenTelemetry and Op
 
 2. **Verify Qdrant Ingested Vectors count**:
    Query the Qdrant REST API or Dashboard (`http://localhost:6333/dashboard`) to verify collection status and point count:
-   ```bash
+  
+```bash
    curl -s http://localhost:6333/collections/default_collection
    ```
 
@@ -150,4 +154,3 @@ Ingestion is completely decoupled from the chatbot `/chat` request handler. File
   * Splits on layout tags/headers (`#`, `##`, `<div>`). Ensures structural sections remain intact, improving the context quality.
 * **Semantic distance chunker**:
   * Computes similarity between consecutive sentences using the embedding model and splits when distance exceeds a threshold. Provides the highest context relevance, but is computationally expensive as it requires embedding calls during chunking.
-

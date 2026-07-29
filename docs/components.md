@@ -214,4 +214,3 @@ agent:
 - **`retry`**: Override default agent-level retry policies for target tools.
 - **`allowed_search_fields`**: Restricts the metadata filter fields allowed to be queried.
 - **`allowed_answer_fields`**: Restricts which document fields are included in the search response back to the LLM (e.g. only return `"text"` and hide system metadata).
-
