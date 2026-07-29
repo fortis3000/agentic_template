@@ -250,6 +250,35 @@ Codestyle functionality could be applied locally using the Makefile created and 
 make precommit
 ```
 
+### Local Workspace Bootstrap
+
+Opening the project in VS Code automatically syncs the backend and frontend
+dependencies through the `Initialize Environment` task (`.vscode/tasks.json`),
+which runs on `folderOpen`:
+
+```bash
+uv sync --extra all && npm install --prefix frontend
+```
+
+This guarantees the Python and Node tooling required by the pre-commit hooks is
+installed without any manual setup. The same command is available as
+`make install_dev_dependencies`.
+
+### GitHub Token Loading
+
+Commands that call the GitHub API (`gh`, the `submit_pr.sh` helper, etc.) read
+`GITHUB_TOKEN` from the root `.env`. To export it into your shell without any
+machine-wide tooling, source the project-scoped loader:
+
+```bash
+source .agents/scripts/load_env.sh
+```
+
+When run from inside a Git worktree under `.worktrees/`, it falls back to the
+parent `.env`. If you use [direnv](https://direnv.net), the optional (git-ignored)
+`.envrc` runs the same loader automatically on `cd`. See
+[Environment Management](docs/environment_management.md) for the full reference.
+
 ### Secure Coding Standards
 
 Secure coding standards are defined in [.agents/CONTEXT.md](file://./.agents/CONTEXT.md) and focus on:
