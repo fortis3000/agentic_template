@@ -921,8 +921,21 @@ async def run_agent_in_background(  # noqa: PLR0912, PLR0915
             )
     except Exception as e:
         logger.error(f"Error running agent: {e}")
+        err_msg = str(e)
+        if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "quota" in err_msg.lower():
+            friendly_text = (
+                "Rate limit quota exceeded (HTTP 429: Too Many Requests). The maximum number of API attempts "
+                "for the current Gemini model has been reached. Please wait 60 seconds before sending your next request."
+            )
+        else:
+            friendly_text = f"An error occurred while processing your request: {err_msg}"
+
+        history = load_session_history(session_id)
+        history.append({"role": "assistant", "content": friendly_text})
+        save_session_history(session_id, history)
+
         if session_id in active_streams:
-            await active_streams[session_id].put({"event": "error", "text": str(e)})
+            await active_streams[session_id].put({"event": "error", "text": friendly_text})
     finally:
         current_session_id.reset(token_context)
         current_loop.reset(loop_context)
