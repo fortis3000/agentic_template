@@ -31,21 +31,15 @@ logger = get_logger(__name__)
 def generate_sparse_vector(text: str) -> SparseVector:
     """Generate a lightweight bag-of-words sparse vector representation of the text."""
     words = re.findall(r"\w+", text.lower())
-    indices = []
-    values = []
-    word_counts = {}
+    index_counts: dict[int, float] = {}
     for w in words:
-        word_counts[w] = word_counts.get(w, 0) + 1
-
-    for w, count in word_counts.items():
         idx = int(hashlib.sha256(w.encode("utf-8")).hexdigest(), 16) % 10000
-        indices.append(idx)
-        values.append(float(count))
+        index_counts[idx] = index_counts.get(idx, 0.0) + 1.0
 
-    sorted_pairs = sorted(zip(indices, values))
+    sorted_indices = sorted(index_counts.keys())
     return SparseVector(
-        indices=[p[0] for p in sorted_pairs],
-        values=[p[1] for p in sorted_pairs],
+        indices=sorted_indices,
+        values=[index_counts[i] for i in sorted_indices],
     )
 
 

@@ -24,13 +24,14 @@ tools:
       # - Ollama nomic-embed-text: Zero API cost local deployment
       embedding_model:
         provider: "google"
-        model: "text-embedding-004"
-        dimensions: 768
+        model: "gemini-embedding-001"
+        dimensions: 3072
       # VectorDB configuration:
       # - location: ":memory:" (in-memory for local tests)
       # - host: "localhost", port: 6333 (persistent Qdrant service with Docker volume mount)
       vectordb:
         type: "qdrant"
-        location: ":memory:"
+        host: "localhost"
+        port: 6333
       allowed_search_fields: ["filepath", "chunk_index"]
       allowed_answer_fields: ["text", "filepath", "chunk_index"]

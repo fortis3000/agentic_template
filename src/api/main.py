@@ -5,6 +5,7 @@ import functools
 import inspect
 import io
 import json
+import os
 import re
 import shutil
 import sys
@@ -73,8 +74,8 @@ async def ingestion_worker() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize Phoenix OpenTelemetry tracing (only if not running under pytest)
-    if "pytest" not in sys.modules:
+    # Initialize Phoenix OpenTelemetry tracing (only if enabled via env and not under pytest)
+    if "pytest" not in sys.modules and os.getenv("ENABLE_PHOENIX", "false").lower() == "true":
         try:
             from phoenix.otel import register  # noqa: PLC0415
 

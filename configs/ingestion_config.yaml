@@ -1,0 +1,17 @@
+source_directory: "data/rag_docs"
+collection_name: "default_collection"
+chunk_size: 500
+chunk_overlap: 50
+chunking_strategy: "markdown"
+file_types:
+  - ".md"
+  - ".txt"
+embedding_model:
+  provider: "google"
+  model: "gemini-embedding-001"
+  dimensions: 3072
+vectordb:
+  type: "qdrant"
+  host: "localhost"
+  port: 6333
+state_db_path: "data/ingestion_state.db"
