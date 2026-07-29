@@ -922,10 +922,12 @@ async def run_agent_in_background(  # noqa: PLR0912, PLR0915
     except Exception as e:
         logger.error(f"Error running agent: {e}")
         err_msg = str(e)
+        max_attempts = getattr(getattr(validated_config, "agent", None), "retry", None)
+        n_attempts = max_attempts.attempts if max_attempts else 3
         if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "quota" in err_msg.lower():
             friendly_text = (
-                "Rate limit quota exceeded (HTTP 429: Too Many Requests). The maximum number of API attempts "
-                "for the current Gemini model has been reached. Please wait 60 seconds before sending your next request."
+                f"Rate limit quota exceeded (HTTP 429: Too Many Requests). The configured maximum number of attempts ({n_attempts}) "
+                f"has been reached. Please wait before retrying."
             )
         else:
             friendly_text = f"An error occurred while processing your request: {err_msg}"
