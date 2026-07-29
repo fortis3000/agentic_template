@@ -53,4 +53,7 @@ services:
       - "6333:6333"
       - "6334:6334"
     volumes:
-      - ./data/qdrant_storage:/qdrant/storage
+      - qdrant_data:/qdrant/storage
+
+volumes:
+  qdrant_data:

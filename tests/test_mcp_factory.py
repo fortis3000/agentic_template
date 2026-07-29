@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.agents.config import McpServerConfigSchema
-from src.agents.mcp import McpServerFactory, make_mcp_tool_callable
+from src.mcp_integration import McpServerFactory, make_mcp_tool_callable
 
 
 @pytest.mark.asyncio
@@ -63,8 +63,8 @@ async def test_make_mcp_tool_callable_stdio():
 
     # Patch client connection and session
     with (
-        patch("src.agents.mcp.stdio_client") as mock_stdio,
-        patch("src.agents.mcp.ClientSession") as mock_client_session,
+        patch("src.mcp_integration.manager.stdio_client") as mock_stdio,
+        patch("src.mcp_integration.manager.ClientSession") as mock_client_session,
     ):
         mock_stdio.return_value.__aenter__.return_value = ("read", "write")
         mock_client_session.return_value = mock_session

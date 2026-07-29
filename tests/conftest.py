@@ -1,6 +1,6 @@
 import pytest
 
-from src.agents.mcp import McpServerFactory
+from src.mcp_integration.client import McpServerFactory
 
 
 @pytest.fixture(autouse=True)

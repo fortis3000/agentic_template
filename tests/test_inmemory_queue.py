@@ -21,7 +21,7 @@ async def test_inmemory_queue_processing():
     await ingestion_queue.put(task_data)
 
     # 2. Mock ingest_document in the background
-    with patch("src.utils.ingestion_helper.ingest_document", new_callable=AsyncMock) as mock_ingest:
+    with patch("src.ingestion.helper.ingest_document", new_callable=AsyncMock) as mock_ingest:
         # Start ingestion_worker task
         worker_task = asyncio.create_task(ingestion_worker())
 

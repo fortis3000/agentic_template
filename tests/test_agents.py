@@ -72,7 +72,7 @@ agent:
         pass
 
     generator = AntigravityAgentGenerator(prompt_base_dir=tmp_path)
-    with patch("src.agents.mcp.McpServerFactory.fetch_tools_sync") as mock_fetch:
+    with patch("src.mcp_integration.client.McpServerFactory.fetch_tools_sync") as mock_fetch:
         mock_fetch.return_value = [
             {"name": "filesystem_read", "description": "Read file", "input_schema": {}}
         ]

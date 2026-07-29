@@ -90,3 +90,31 @@ async def test_google_embedding_client_generation():
         assert res.embedding == [0.1, 0.2, 0.3, 0.4]
         assert res.dimensions == 4  # noqa: PLR2004
         mock_embed.assert_called_once_with(model="text-embedding-004", contents="hello world")
+
+
+@pytest.mark.asyncio
+async def test_google_embedding_client_batch_generation():
+    """Test batch text embedding generation using Google client mock."""
+    cfg = EmbeddingModelConfigSchema(
+        provider="google",
+        model="text-embedding-004",
+        dimensions=4,
+    )
+    client = EmbeddingModelFactory.create(cfg)
+
+    mock_values_1 = MagicMock()
+    mock_values_1.values = [0.1, 0.2, 0.3, 0.4]
+    mock_values_2 = MagicMock()
+    mock_values_2.values = [0.5, 0.6, 0.7, 0.8]
+    mock_res = MagicMock()
+    mock_res.embeddings = [mock_values_1, mock_values_2]
+
+    with patch.object(
+        cast(Any, client).client.models, "embed_content", return_value=mock_res
+    ) as mock_embed:
+        res = await client.embed_batch(["hello", "world"])
+        assert len(res.embeddings) == 2  # noqa: PLR2004
+        assert res.embeddings[0] == [0.1, 0.2, 0.3, 0.4]
+        assert res.embeddings[1] == [0.5, 0.6, 0.7, 0.8]
+        assert res.dimensions == 4  # noqa: PLR2004
+        mock_embed.assert_called_once_with(model="text-embedding-004", contents=["hello", "world"])

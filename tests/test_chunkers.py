@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.utils.chunkers import fixed_chunker, markdown_chunker, semantic_chunker
+from src.ingestion.chunkers import fixed_chunker, markdown_chunker, semantic_chunker
 
 
 def test_fixed_chunker():

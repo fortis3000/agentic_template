@@ -26,6 +26,12 @@ agent:
 * **`enabled_tools`**: If specified, only tool names matching this list are exposed to the agent.
 * **`disabled_tools`**: If specified, tool names matching this list are filtered out and hidden from the agent.
 
+### Client & Server Code Separation (`src/mcp/`)
+The MCP package structure separates client-side management from server schema configuration:
+* **`src/mcp/client.py`**: Client sessions, `McpServerFactory` non-blocking tool fetcher, and async tool call wrappers.
+* **`src/mcp/manager.py`**: `McpConnectionManager` for connection caching and thread-safe session reuse.
+* **`src/mcp/server.py`**: `McpServerConfigSchema` server configurations and parameter parsers.
+
 ---
 
 ## 2. Persistent Connection Caching

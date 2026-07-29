@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.agents.config import EmbeddingModelConfigSchema
-from src.data.ingest import IngestionConfigSchema, IngestionPipeline
-from src.utils.chunkers import fixed_chunker as chunk_text
+from src.ingestion.chunkers import fixed_chunker as chunk_text
+from src.ingestion.pipeline import IngestionConfigSchema, IngestionPipeline
 
 
 def test_chunk_text_boundaries():
@@ -73,8 +73,8 @@ async def test_ingestion_pipeline_delta_updates(tmp_path):
     )
 
     with (
-        patch("src.data.ingest.VectorDBFactory.create", return_value=mock_db),
-        patch("src.data.ingest.EmbeddingModelFactory.create", return_value=mock_embed),
+        patch("src.ingestion.pipeline.VectorDBFactory.create", return_value=mock_db),
+        patch("src.ingestion.pipeline.EmbeddingModelFactory.create", return_value=mock_embed),
     ):
         # Scan for initial files (should find 2 NEW files)
         jobs_count = pipeline.check_deltas_and_queue_jobs()

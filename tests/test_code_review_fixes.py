@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.agents.config import McpServerConfigSchema
-from src.agents.mcp import McpServerFactory
+from src.mcp_integration import McpServerFactory
 from src.tools.qdrant_db import QdrantVectorDB, generate_sparse_vector
 from src.tools.vectordb_search import VectorDBSearchTool
 
@@ -78,7 +78,9 @@ def test_fetch_tools_sync_non_blocking():
         args=["[]"],
     )
 
-    with patch("src.agents.mcp.McpServerFactory.fetch_tools", new_callable=AsyncMock) as mock_fetch:
+    with patch(
+        "src.mcp_integration.client.McpServerFactory.fetch_tools", new_callable=AsyncMock
+    ) as mock_fetch:
         mock_fetch.return_value = [{"name": "echo_tool", "description": "echo", "input_schema": {}}]
         tools = McpServerFactory.fetch_tools_sync(config)
         assert len(tools) == 1

@@ -104,7 +104,7 @@ The VectorDB searches and retrievals are instrumented using OpenTelemetry and Op
 ### Execution Commands
 * **CLI Ingestion**: Run the ingestion synchronization script on a source directory of documents:
   ```bash
-  uv run python -m src.data.ingest --config configs/ingestion_config.yaml
+  uv run python -m src.ingestion.pipeline --config configs/ingestion_config.yaml
   ```
 
 * **Start Vector Database**: Run the containerized Qdrant instance locally:
@@ -130,14 +130,18 @@ The VectorDB searches and retrievals are instrumented using OpenTelemetry and Op
 
 ## 7. Architectural Decisions & Strategy Trade-offs
 
-### In-Memory Task Queue vs. Celery + Redis
-* **In-Memory (`asyncio.Queue`)**:
-  * *Pros*: Minimal dependencies (does not require setting up a message broker or spawning worker containers), zero overhead, extremely simple for local development and testing.
-  * *Cons*: Volatile (if the server process crashes, pending ingestion jobs are lost), lacks scaling capabilities beyond a single container.
-* **Celery + Redis**:
-  * *Pros*: Durable, persistent message backlog, allows horizontal scaling of workers to process heavy text extraction workloads concurrently, provides built-in task monitoring.
-  * *Cons*: Adds infrastructure complexity, requires managing separate broker/worker processes.
-* **Decision**: We use the local in-memory queue for ease of developer setup, with a clear migration roadmap to Celery + Redis for production scaling.
+### Ingest & Chat Endpoint Separation
+Ingestion is completely decoupled from the chatbot `/chat` request handler. File attachments sent to `/chat` are parsed strictly for prompt context, keeping the vector database isolated and dedicated to vector index operations.
+
+### Alternative Queue & Delta Update Implementations
+* **Queue Alternatives**:
+  * **In-Memory (`asyncio.Queue`)**: Zero setup overhead, ideal for single-container local usage.
+  * **Celery + Redis / RabbitMQ**: Persistent task broker with worker auto-scaling for heavy multi-tenant text parsing.
+  * **Kafka / NATS**: Event-driven streaming queue for real-time document ingestion events at scale.
+* **Delta Tracking Alternatives**:
+  * **SQLite mtime & SHA-256 (Current)**: Lightweight, file system scanning with hash verification.
+  * **File Watcher (`watchdog` / `inotify`)**: Real-time event notifications on file creation/modification/deletion without directory polling.
+  * **Database CDC (Change Data Capture)**: Debezium or PostgreSQL logical replication triggers for streaming database record changes directly to vector indexes.
 
 ### Text Chunking Strategies
 * **Fixed-size chunker**:

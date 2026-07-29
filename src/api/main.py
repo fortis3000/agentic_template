@@ -54,7 +54,7 @@ async def ingestion_worker() -> None:
             embed_client = task_data["embed_client"]
 
             logger.info(f"Processing background ingestion for: {filepath}")
-            from src.utils.ingestion_helper import ingest_document  # noqa: PLC0415
+            from src.ingestion.helper import ingest_document  # noqa: PLC0415
 
             await ingest_document(
                 filepath=filepath,
@@ -101,7 +101,7 @@ async def lifespan(app: FastAPI):
             pass
 
     # Close persistent MCP connections
-    from src.agents.mcp import McpConnectionManager  # noqa: PLC0415
+    from src.mcp_integration import McpConnectionManager  # noqa: PLC0415
 
     await McpConnectionManager.close_all()
 
@@ -736,17 +736,6 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):  # noqa
             file_constraints=file_constraints,
             session_upload_dir=session_upload_dir,
         )
-
-        # 4. Enqueue files for background ingestion if embedding_model is configured
-        if agent_cfg.embedding_model and file_contexts:
-            from src.utils.ingestion_helper import prepare_and_enqueue_ingestion  # noqa: PLC0415
-
-            await prepare_and_enqueue_ingestion(
-                file_contexts=file_contexts,
-                agent_cfg=agent_cfg,
-                ingestion_queue=ingestion_queue,
-                workspace_root=WORKSPACE_ROOT,
-            )
 
     # Cancel any active running task for this session first
     if session_id in active_tasks:

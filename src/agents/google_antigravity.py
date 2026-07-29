@@ -325,7 +325,10 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
                 )
 
         # 3. Resolve MCP Servers to standard wrapped tools
-        from src.agents.mcp import McpServerFactory, make_mcp_tool_callable  # noqa: PLC0415
+        from src.mcp_integration.client import (  # noqa: PLC0415
+            McpServerFactory,
+            make_mcp_tool_callable,
+        )
 
         for mcp_name, mcp_cfg in agent_data.mcp_servers.items():
             # Synchronously fetch tools
