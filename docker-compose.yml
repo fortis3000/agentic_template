@@ -13,6 +13,7 @@ services:
     environment:
       - PHOENIX_CLIENT_HEADERS=api_key=${PHOENIX_API_KEY:-}
       - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:4317
+      - QDRANT_HOST=qdrant
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
     env_file:

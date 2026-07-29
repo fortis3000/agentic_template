@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import json
+import os
 import re
 from typing import Any, cast
 
@@ -63,7 +64,7 @@ class QdrantVectorDB(BaseVectorDB):
         """
         self.location = location
         self.url = url
-        self.host = host
+        self.host = os.getenv("QDRANT_HOST") or host
         self.port = port
         self.kwargs = kwargs
 
@@ -72,17 +73,23 @@ class QdrantVectorDB(BaseVectorDB):
         except RuntimeError:
             loop_id = None
 
-        key = f"{loop_id}:{location or ''}:{host or ''}:{port or ''}:{url or ''}"
+        key = (
+            f"{loop_id}:{self.location or ''}:{self.host or ''}:{self.port or ''}:{self.url or ''}"
+        )
         if key not in QdrantVectorDB._instances:
-            if location:
-                logger.info(f"Initializing QdrantVectorDB in-memory (location: {location}).")
-                QdrantVectorDB._instances[key] = AsyncQdrantClient(location=location, **kwargs)
-            elif url:
-                logger.info(f"Initializing QdrantVectorDB with URL: {url}.")
-                QdrantVectorDB._instances[key] = AsyncQdrantClient(url=url, **kwargs)
+            if self.location:
+                logger.info(f"Initializing QdrantVectorDB in-memory (location: {self.location}).")
+                QdrantVectorDB._instances[key] = AsyncQdrantClient(location=self.location, **kwargs)
+            elif self.url:
+                logger.info(f"Initializing QdrantVectorDB with URL: {self.url}.")
+                QdrantVectorDB._instances[key] = AsyncQdrantClient(url=self.url, **kwargs)
             else:
-                logger.info(f"Initializing QdrantVectorDB with host: {host}, port: {port}.")
-                QdrantVectorDB._instances[key] = AsyncQdrantClient(host=host, port=port, **kwargs)
+                logger.info(
+                    f"Initializing QdrantVectorDB with host: {self.host}, port: {self.port}."
+                )
+                QdrantVectorDB._instances[key] = AsyncQdrantClient(
+                    host=self.host, port=self.port, **kwargs
+                )
 
         self.client = QdrantVectorDB._instances[key]
 

@@ -97,7 +97,13 @@ class VectorDBSearchTool(BaseTool):
 
             query_vector = emb_res.embedding
 
-            target_collection = collection_name or self.collection_name
+            target_collection = self.collection_name
+            if collection_name:
+                try:
+                    if await self.db.client.collection_exists(collection_name):
+                        target_collection = collection_name
+                except Exception as e:
+                    logger.debug(f"Collection check for '{collection_name}' failed: {e}")
 
             # Execute search
             hits = await self.db.search(
