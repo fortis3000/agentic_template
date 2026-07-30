@@ -5,6 +5,7 @@ import functools
 import inspect
 import io
 import json
+import os
 import re
 import shutil
 import sys
@@ -33,19 +34,27 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize Phoenix OpenTelemetry tracing (only if not running under pytest)
-    if "pytest" not in sys.modules:
+    # Initialize Phoenix OpenTelemetry tracing (only if enabled via env and not under pytest)
+    if "pytest" not in sys.modules and os.getenv("ENABLE_PHOENIX", "true").lower() == "true":
         try:
             from phoenix.otel import register  # noqa: PLC0415
 
+            collector_endpoint = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:4317")
             register(
                 project_name="agentic-template",
+                endpoint=collector_endpoint,
                 auto_instrument=True,
             )
-            logger.info("Arize Phoenix OpenTelemetry tracing initialized successfully.")
+            logger.info(f"Arize Phoenix OpenTelemetry tracing initialized to {collector_endpoint}.")
         except Exception as e:
             logger.error(f"Failed to initialize Arize Phoenix tracing: {e}")
+
     yield
+
+    # Close persistent MCP connections
+    from src.mcp_integration import McpConnectionManager  # noqa: PLC0415
+
+    await McpConnectionManager.close_all()
 
 
 app = FastAPI(title="Agentic Template UI API", version="1.0.0", lifespan=lifespan)
@@ -613,7 +622,7 @@ def _process_file_attachments(
 
 
 @app.post("/api/agent/chat")
-async def chat(request: ChatRequest, background_tasks: BackgroundTasks):  # noqa: PLR0912
+async def chat(request: ChatRequest, background_tasks: BackgroundTasks):  # noqa: PLR0912, PLR0915
     """Triggers the agent execution in a background task."""
     session_id = request.session_id or str(uuid.uuid4())
 
@@ -718,6 +727,7 @@ async def run_agent_in_background(  # noqa: PLR0912, PLR0915
     config_path: str | None = None,
 ):
     """Runs agent execution, saves logs, and pumps events into the active stream queue."""
+    validated_config: AgentYamlConfig | None = None
     token_context = current_session_id.set(session_id)
     loop_context = current_loop.set(asyncio.get_running_loop())
     try:
@@ -786,7 +796,7 @@ async def run_agent_in_background(  # noqa: PLR0912, PLR0915
         # Merge them into a copy of STREAM_TOOLS_REGISTRY
         merged_registry = {**STREAM_TOOLS_REGISTRY, **wrapped_dynamic_tools}
 
-        agent = generator.create_agent(
+        agent = await generator.create_agent_async(
             validated_config,
             system_variables=system_variables,
             tools_registry=merged_registry,
@@ -860,8 +870,27 @@ async def run_agent_in_background(  # noqa: PLR0912, PLR0915
             )
     except Exception as e:
         logger.error(f"Error running agent: {e}")
+        err_msg = str(e)
+        max_attempts = (
+            getattr(getattr(validated_config, "agent", None), "retry", None)
+            if validated_config
+            else None
+        )
+        n_attempts = max_attempts.attempts if max_attempts else 3
+        if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "quota" in err_msg.lower():
+            friendly_text = (
+                f"Rate limit quota exceeded (HTTP 429: Too Many Requests). The configured maximum number of attempts ({n_attempts}) "
+                f"has been reached. Please wait before retrying."
+            )
+        else:
+            friendly_text = f"An error occurred while processing your request: {err_msg}"
+
+        history = load_session_history(session_id)
+        history.append({"role": "assistant", "content": friendly_text})
+        save_session_history(session_id, history)
+
         if session_id in active_streams:
-            await active_streams[session_id].put({"event": "error", "text": str(e)})
+            await active_streams[session_id].put({"event": "error", "text": friendly_text})
     finally:
         current_session_id.reset(token_context)
         current_loop.reset(loop_context)

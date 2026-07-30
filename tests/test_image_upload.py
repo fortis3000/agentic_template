@@ -245,7 +245,7 @@ async def test_run_agent_in_background_serializes_images(tmp_path, monkeypatch):
     # 2. Mock SESSIONS_DIR in main.py to point to tmp_path
     monkeypatch.setattr("src.api.main.SESSIONS_DIR", tmp_path)
 
-    # 3. Mock PydanticAIAgentGenerator.create_agent to return a mock agent
+    # 3. Mock PydanticAIAgentGenerator.create_agent_async to return a mock agent
     mock_agent = MagicMock()
     mock_agent.prompt_manager = None
     mock_agent.default_user_prompt_source = None
@@ -256,8 +256,11 @@ async def test_run_agent_in_background_serializes_images(tmp_path, monkeypatch):
 
     mock_agent.call_stream = mock_call_stream
 
+    async def mock_create_agent_async(*args, **kwargs):
+        return mock_agent
+
     monkeypatch.setattr(
-        "src.api.main.PydanticAIAgentGenerator.create_agent", lambda *args, **kwargs: mock_agent
+        "src.api.main.PydanticAIAgentGenerator.create_agent_async", mock_create_agent_async
     )
 
     # 4. Run the background agent task

@@ -10,10 +10,11 @@ The documentation is organized into the following sections:
 - **[components.md](components.md)**: Detailed breakdown of the repository's modules, including agent SDK abstractions, backend wrappers, observability frameworks, and validation gates.
 - **[frontend.md](frontend.md)**: Breakdown of frontend UI components, styling hooks, and state management specifications.
 - **[environment_management.md](environment_management.md)**: Detailed runtime configurations, packages, API environment parameters, and container networking patterns for backend and frontend.
-- **[diagrams.md](diagrams.md)**: Graphical representations of the system, including:
-  - **High-Level System Architecture**: Shows relationships and boundaries between the five core layers.
-  - **Runtime Execution Flow**: Traces an agent invocation, tool resolution, and telemetry spans from query to response.
-  - **Developer Contribution Loop**: Visualizes the secure SDLC pipeline, including worktrees, pre-commit validation, and automated pull request template checks.
+- **[ingestion_pipeline.md](ingestion_pipeline.md)**: Specifications for document ingestion, text chunking strategies, embedding generation, and Qdrant syncing.
+- **[rag_operation_guide.md](rag_operation_guide.md)**: End-to-end operational and testing guide for document ingestion, Qdrant vector persistence, and RAG chatbot queries.
+- **[qdrant_guide.md](qdrant_guide.md)**: Qdrant Vector Database guide, sparse vector deduplication, and visual web dashboard UI options.
+- **[arize_phoenix_guide.md](arize_phoenix_guide.md)**: Arize Phoenix OpenTelemetry tracing setup and visual interface step-by-step navigation.
+- **[diagrams.md](diagrams.md)**: Graphical representations of system architecture, RAG vector retrieval, container networking, and Arize Phoenix tracing flow.
 
 ## Repository Overview
 

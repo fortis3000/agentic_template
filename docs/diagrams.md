@@ -189,3 +189,65 @@ graph TD
     Tools -->|Writes outputs| DataDir
     API -->|Text extraction| TextExtractor
 ```
+
+---
+
+## 5. Embedding Generation Flow
+
+This diagram outlines how multimodal inputs are mapped to dense vector representations using concrete provider clients, standard API payloads, and dimension alignment checks.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Caller as Ingestion / Search Client
+    participant Factory as EmbeddingModelFactory
+    participant Client as concrete EmbeddingClient (Google/OpenAI/Ollama)
+    participant API as External Model API (Google/OpenAI/Ollama)
+
+    Caller->>Factory: create(config)
+    Factory-->>Caller: Returns Client Instance
+    Caller->>Client: embed_text(text) or embed_image(bytes, mime)
+    Client->>Client: Validate supported_data_types
+    Client->>API: HTTP POST request with payload
+    API-->>Client: Returns JSON Response with vectors
+    Client->>Client: Extract values (e.g. response.embeddings[0].values)
+    Client->>Client: Assert dimensions match configuration
+    Client-->>Caller: Returns EmbeddingResponse
+```
+
+---
+
+## 6. MCP Tool Resolution & Execution Flow
+
+This diagram details the lifecycle of MCP tools from initial discovery to persistent cached session calls, and application lifespan teardown.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor System as Agent Generator / Lifespan
+    participant Factory as McpServerFactory
+    participant Cache as McpConnectionManager
+    participant Subprocess as MCP Stdio Subprocess / SSE Client
+
+    Note over System, Subprocess: Tool Discovery Phase
+    System->>Factory: fetch_tools_sync(config)
+    Factory->>Cache: Spawns ThreadPoolExecutor & starts loop
+    Cache->>Subprocess: Query tools metadata list
+    Subprocess-->>Cache: Tool details list
+    Cache-->>Factory: Tool details list
+    Factory-->>System: Filtered tool schema definitions
+
+    Note over System, Subprocess: Tool Execution Phase
+    System->>Cache: get_session(config)
+    alt Session not in cache
+        Cache->>Subprocess: Start stdio/SSE client context & initialize
+        Subprocess-->>Cache: ClientSession active
+    end
+    Cache-->>System: Cached ClientSession
+    System->>Subprocess: call_tool(name, arguments)
+    Subprocess-->>System: Tool output response
+
+    Note over System, Subprocess: Application Shutdown
+    System->>Cache: close_all()
+    Cache->>Subprocess: Exit context & terminate subprocesses
+```

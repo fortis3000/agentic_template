@@ -158,9 +158,15 @@ def retry_sync(
 
 
 def wrap_tool_with_retry(
-    tool_func: Callable[..., Any], retry_config: RetryConfig
+    tool_func: Callable[..., Any],
+    default_retry_config: RetryConfig,
+    tool_retry_config: RetryConfig | None = None,
 ) -> Callable[..., Any]:
-    """Wraps a tool callable to retry execution if it encounters retryable exceptions."""
+    """Wraps a tool callable to retry execution if it encounters retryable exceptions.
+
+    Prioritizes tool_retry_config over default_retry_config.
+    """
+    retry_config = tool_retry_config or default_retry_config
     tool_name = getattr(tool_func, "__name__", "unknown_tool")
 
     if inspect.iscoroutinefunction(tool_func):

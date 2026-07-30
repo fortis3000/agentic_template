@@ -11,8 +11,10 @@ services:
       - .:/app
       - /app/.venv
     environment:
+      - ENABLE_PHOENIX=true
       - PHOENIX_CLIENT_HEADERS=api_key=${PHOENIX_API_KEY:-}
-      - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:4317
+      - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006/v1/traces
+      - QDRANT_HOST=qdrant
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
     env_file:
@@ -46,3 +48,14 @@ services:
       timeout: 2s
       retries: 5
       start_period: 5s
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+volumes:
+  qdrant_data:

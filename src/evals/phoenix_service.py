@@ -8,6 +8,7 @@ import phoenix as px
 from phoenix.otel import register
 
 from src.agents.google_antigravity import AntigravityAgent, AntigravityAgentGenerator
+from src.tools.qdrant_db import QdrantVectorDB
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -90,6 +91,24 @@ async def run_demo_agent_run():
         await run_live_demo_run(agent, query)
     else:
         await run_mocked_demo_run(agent, query)
+
+    # 4. Generate a dummy VectorDB span to demonstrate VectorDB tracing
+    try:
+        logger.info("Simulating VectorDB search to generate retriever span...")
+        db = QdrantVectorDB(location=":memory:")
+        await db.create_collection("demo_collection", vector_size=4)
+        await db.insert(
+            "demo_collection",
+            ids=[1],
+            vectors=[[0.1, 0.2, 0.3, 0.4]],
+            payloads=[{"text": "Sample document"}],
+        )
+        await db.search(
+            "demo_collection", query_vector=[0.1, 0.2, 0.3, 0.4], limit=1, query_text="Search query"
+        )
+        logger.info("VectorDB search simulated successfully!")
+    except Exception as db_err:
+        logger.warning(f"Failed to simulate VectorDB search: {db_err}")
 
     logger.info("Spans successfully generated and sent to Arize Phoenix collector!")
 

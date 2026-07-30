@@ -121,3 +121,96 @@ The codebase implements a robust, two-tier retry mechanism to handle transient n
   - Registers failures on the active OpenTelemetry span via `span.record_exception(e)` to preserve logging traces.
   - If a stream call has already yielded tokens (`has_yielded = True`), the retry logic aborts and propagates the exception to prevent replaying duplicate tokens.
   - Non-retryable errors (like authentication failure 401/403 or bad request 400) immediately abort execution.
+
+---
+
+## 7. Embeddings & VectorDB Interfaces
+
+To support retrieval-augmented generation (RAG) and search capabilities, the codebase defines clean interfaces for text embeddings and vector storage:
+
+### Embeddings (`src/agents/embeddings.py`)
+- **`BaseEmbeddingClient`**: The base class for generating vector representations of text. Enforces validation rules on dimensions and element types.
+- **`GoogleEmbeddingClient` & `OpenAIEmbeddingClient`**: Integrations with model providers (`google-genai` and `openai`) for dense embeddings generation (e.g. `text-embedding-004`, `text-embedding-3-small`).
+- **`OllamaEmbeddingClient`**: Zero-cost local embedding generation via Ollama HTTP API (e.g. `nomic-embed-text`).
+- **Multimodal checks**: Asserts text-only embedding models are not supplied with images, raising `ValueError` on image calls.
+
+### Vector Databases (`src/tools/vectordb_base.py`, `src/tools/qdrant_db.py`)
+- **`BaseVectorDB`**: Abstract interface for CRUD actions on a vector space (`create_collection`, `insert`, `search`, `delete`).
+- **`QdrantVectorDB`**: Integration with Qdrant. Fully supports local memory testing via `location=":memory:"` and persistent vector storage volume via Docker.
+- **Arize Phoenix Spans**: Implements OpenInference `RETRIEVER` semantic tracing, capturing queries, retrieved document contents, similarity scores, and payload metadata automatically.
+
+---
+
+## 8. Document Ingestion Package (`src/ingestion/`)
+
+- **`IngestionPipeline` (`src/ingestion/pipeline.py`)**: Synchronizes a target local directory with Qdrant. Utilizes SHA-256 file hashes and timestamps to check for modifications.
+- **SQLite persistent queue**: Keeps track of file states in `files` and enqueued sync tasks in `ingest_jobs` tables inside `data/ingestion_state.db` to process actions sequentially.
+- **Ingestion Helper (`src/ingestion/helper.py`)**: Document extraction and ingestion preparation utilities. Note: Ingestion is fully decoupled from chat endpoints and operates independently on vector DBs.
+- **Chunkers (`src/ingestion/chunkers.py`)**: Text splitters including fixed-length, markdown header-based, and semantic distance sentence groupers.
+- **Deterministic UUIDs**: Encodes unique points in Qdrant using deterministic namespace UUIDs (`uuid.uuid5`) to prevent duplicate entry generation and facilitate seamless updates or deletions.
+
+---
+
+## 9. Model Context Protocol Package (`src/mcp/`)
+
+- **MCP Client (`src/mcp/client.py`)**: Client session management, `McpServerFactory` for non-blocking tool fetching, and async `make_mcp_tool_callable` wrappers.
+- **MCP Connection Manager (`src/mcp/manager.py`)**: Manages persistent connection contexts (`ClientSession`) for stdio and HTTP/SSE servers to avoid subprocess overhead.
+- **MCP Server (`src/mcp/server.py`)**: Server configuration parameter parsers and schema definitions.
+
+---
+
+## 9. Vector Database Class Diagram
+
+```mermaid
+classDiagram
+    class BaseVectorDB {
+        <<abstract>>
+        +create_collection(collection_name, vector_size, distance)
+        +insert(collection_name, ids, vectors, payloads)
+        +search(collection_name, query_vector, limit, filter_dict)
+        +delete(collection_name, ids)
+    }
+    class QdrantVectorDB {
+        +client: AsyncQdrantClient
+        -instances: dict
+        +create_collection()
+        +insert()
+        +search()
+        +delete()
+    }
+    class VectorDBSearchTool {
+        +collection_name: str
+        +embed_client: BaseEmbeddingClient
+        +db: BaseVectorDB
+        +allowed_search_fields: list
+        +allowed_answer_fields: list
+        +get_callable()
+    }
+    BaseVectorDB <|-- QdrantVectorDB
+    VectorDBSearchTool --> BaseVectorDB
+```
+
+---
+
+## 10. Whitelist Tool Settings & Retry Overrides
+
+Individual tool executions and settings can be overridden on a per-agent basis under `tool_settings` in `agent_config.yaml`:
+
+```yaml
+agent:
+  tool_settings:
+    search_vectordb:
+      retry:
+        attempts: 3
+        delay: 2.0
+      allowed_search_fields:
+        - "category"
+        - "language"
+      allowed_answer_fields:
+        - "text"
+        - "filepath"
+```
+
+- **`retry`**: Override default agent-level retry policies for target tools.
+- **`allowed_search_fields`**: Restricts the metadata filter fields allowed to be queried.
+- **`allowed_answer_fields`**: Restricts which document fields are included in the search response back to the LLM (e.g. only return `"text"` and hide system metadata).

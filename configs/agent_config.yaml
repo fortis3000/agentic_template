@@ -1,7 +1,7 @@
 agent:
   name: "demo_agent"
-  model: "gemma4:12b"
-  provider: "ollama"
+  model: "gemini-3.5-flash-lite"
+  provider: "google"
   system_prompt_path: "src/prompts/system_prompt.txt"
   user_prompt_path: "src/prompts/user_prompt.txt"
   app_data_dir: "data"
@@ -25,12 +25,5 @@ agent:
   max_file_size_bytes: 20971520  # 20 MB
   max_files_per_message: 5
   tools:
+    - "search_vectordb"
     - "get_weather"
-    - "read_google_sheet"
-    - "write_google_sheet"
-    - "add_vocab_entry"
-  mcp_servers:
-    filesystem:
-      type: "stdio"
-      command: "npx"
-      args: ["-y", "@modelcontextprotocol/server-filesystem", "./data"]

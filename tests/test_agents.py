@@ -3,7 +3,6 @@ from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from google.antigravity.types import McpStdioServer
 
 from src.agents.base import AgentInputPart, ImagePart, TextPart
 from src.agents.google_antigravity import AntigravityAgent, AntigravityAgentGenerator
@@ -73,28 +72,35 @@ agent:
         pass
 
     generator = AntigravityAgentGenerator(prompt_base_dir=tmp_path)
-    agent = cast(
-        AntigravityAgent,
-        generator.create_agent(
-            str(config_file),
-            system_variables={"role": "assistant"},
-            tools_registry={"custom_tool": mock_tool},
-        ),
-    )
+    with patch("src.mcp_integration.client.McpServerFactory.fetch_tools_sync") as mock_fetch:
+        mock_fetch.return_value = [
+            {"name": "filesystem_read", "description": "Read file", "input_schema": {}}
+        ]
+        agent = cast(
+            AntigravityAgent,
+            generator.create_agent(
+                str(config_file),
+                system_variables={"role": "assistant"},
+                tools_registry={"custom_tool": mock_tool},
+            ),
+        )
+
     assert isinstance(agent, AntigravityAgent)
 
     assert agent.config.model == "gemini-3.5-flash"
     assert agent.config.system_instructions == "System instruction for assistant"
-    assert len(agent.config.tools) == 1
+    assert len(agent.config.tools) == 2  # custom_tool + filesystem_read  # noqa: PLR2004
     actual_tool = agent.config.tools[0]
     while hasattr(actual_tool, "__wrapped__"):
         actual_tool = actual_tool.__wrapped__
     assert actual_tool == mock_tool
-    assert len(agent.config.mcp_servers) == 1
-    server = agent.config.mcp_servers[0]
-    assert isinstance(server, McpStdioServer)
-    assert server.name == "filesystem"
-    assert server.command == "npx"
+
+    # Verify MCP tool wrapping
+    mcp_tool_callable = agent.config.tools[1]
+    assert hasattr(mcp_tool_callable, "__name__")
+    assert mcp_tool_callable.__name__ == "filesystem_read"
+    assert not agent.config.mcp_servers
+
     app_dir = agent.config.app_data_dir
     assert app_dir is not None
     assert os.path.isabs(app_dir)

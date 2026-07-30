@@ -9,6 +9,7 @@ from typing import Any, Callable
 import yaml
 from google.antigravity import Agent as G_Agent
 from google.antigravity import LocalAgentConfig
+from google.antigravity.tools.tool_runner import ToolWithSchema
 from google.antigravity.types import (
     Image as G_Image,
 )
@@ -20,7 +21,7 @@ from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttribu
 from opentelemetry import trace
 
 from src.agents.base import AgentInputPart, BaseAgent, BaseAgentGenerator, ImagePart, TextPart
-from src.agents.config import AgentYamlConfig
+from src.agents.config import AgentConfigSchema, AgentYamlConfig, McpServerConfigSchema
 from src.agents.prompt_manager import PromptManager
 from src.tools.base import ToolFactory
 from src.utils.logger import get_logger
@@ -254,7 +255,7 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
         """
         self.prompt_base_dir = prompt_base_dir
 
-    def create_agent(  # noqa: PLR0912
+    def create_agent(
         self,
         config: str | AgentYamlConfig,
         system_variables: dict[str, Any] | None = None,
@@ -263,6 +264,10 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
         **kwargs: Any,
     ) -> BaseAgent:
         """Create and configure an AntigravityAgent from a configuration file or pre-loaded config.
+
+        Discovers MCP tools synchronously, which blocks the calling thread while each configured
+        MCP server starts. Callers already running on an event loop must use
+        :meth:`create_agent_async` instead.
 
         Args:
             config: Path to the YAML configuration file or pre-loaded AgentYamlConfig.
@@ -274,22 +279,75 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
         Returns:
             An instance of AntigravityAgent.
         """
+        from src.mcp_integration.client import McpServerFactory  # noqa: PLC0415
+
+        agent_data, prompt_manager, system_prompt, tools = self._resolve_config(
+            config, system_variables, tools_registry, tools_config_path, **kwargs
+        )
+        mcp_tools_by_server = {
+            name: McpServerFactory.fetch_tools_sync(cfg)
+            for name, cfg in agent_data.mcp_servers.items()
+        }
+        self._append_mcp_tools(tools, agent_data, mcp_tools_by_server)
+        return self._finalize(agent_data, prompt_manager, system_prompt, tools, kwargs)
+
+    async def create_agent_async(
+        self,
+        config: str | AgentYamlConfig,
+        system_variables: dict[str, Any] | None = None,
+        tools_registry: dict[str, Callable[..., Any]] | None = None,
+        tools_config_path: str | None = None,
+        **kwargs: Any,
+    ) -> BaseAgent:
+        """Create an AntigravityAgent without blocking the event loop on MCP server startup.
+
+        Identical to :meth:`create_agent` except that MCP tool discovery is awaited, so other
+        coroutines keep running while MCP servers start.
+        """
+        from src.mcp_integration.client import McpServerFactory  # noqa: PLC0415
+
+        agent_data, prompt_manager, system_prompt, tools = self._resolve_config(
+            config, system_variables, tools_registry, tools_config_path, **kwargs
+        )
+        mcp_tools_by_server = {
+            name: await McpServerFactory.fetch_tools(cfg)
+            for name, cfg in agent_data.mcp_servers.items()
+        }
+        self._append_mcp_tools(tools, agent_data, mcp_tools_by_server)
+        return self._finalize(agent_data, prompt_manager, system_prompt, tools, kwargs)
+
+    def _resolve_config(
+        self,
+        config: str | AgentYamlConfig,
+        system_variables: dict[str, Any] | None = None,
+        tools_registry: dict[str, Callable[..., Any]] | None = None,
+        tools_config_path: str | None = None,
+        **kwargs: Any,
+    ) -> tuple[AgentConfigSchema, PromptManager, str, list[Any]]:
+        """Validate the config and resolve the system prompt and all non-MCP tools."""
         if isinstance(config, str):
             # Load and parse YAML config
             with open(config, encoding="utf-8") as f:
                 config_data = yaml.safe_load(f)
-            agent_data = config_data.get("agent", {})
+            validated_config = AgentYamlConfig.model_validate(config_data)
         else:
-            agent_data = config.agent.model_dump()
+            validated_config = config
+
+        agent_data_dict = validated_config.agent.model_dump()
+
+        # Allow overrides from kwargs
+        for k, v in kwargs.items():
+            if v is not None:
+                agent_data_dict[k] = v
+
+        agent_data = AgentConfigSchema.model_validate(agent_data_dict)
         prompt_manager = PromptManager(base_dir=self.prompt_base_dir)
 
         # 1. Resolve System instructions
         system_prompt = ""
-        system_prompt_source = agent_data.get("system_prompt_path") or agent_data.get(
-            "system_prompt"
-        )
+        system_prompt_source = agent_data.system_prompt_path or agent_data.system_prompt
         if system_prompt_source:
-            system_prompt_format = agent_data.get("system_prompt_format", "f-string")
+            system_prompt_format = agent_data.system_prompt_format or "f-string"
             system_prompt = prompt_manager.load_prompt(
                 system_prompt_source,
                 variables=system_variables,
@@ -302,89 +360,111 @@ class AntigravityAgentGenerator(BaseAgentGenerator):
         if tools_config_path:
             tools_registry.update(ToolFactory.load_from_yaml(tools_config_path))
 
-        retry_data = agent_data.get("retry")
-        if not isinstance(retry_data, dict):
-            retry_data = {}
-        retry_config = RetryConfig(**retry_data)
-
-        tool_names = agent_data.get("tools", [])
-        for tool_name in tool_names:
+        for tool_name in agent_data.tools:
             if tool_name in tools_registry:
-                wrapped_tool = wrap_tool_with_retry(tools_registry[tool_name], retry_config)
+                tool_retry = None
+                if tool_name in agent_data.tool_settings:
+                    tool_retry = agent_data.tool_settings[tool_name].retry
+
+                wrapped_tool = wrap_tool_with_retry(
+                    tools_registry[tool_name], agent_data.retry, tool_retry
+                )
                 tools.append(trace_tool(wrapped_tool))
             else:
-                # Log warning or add a stub / placeholder warning
-                logger.warning(
+                raise ValueError(
                     f"Tool '{tool_name}' listed in config but not provided in tools_registry."
                 )
 
-        # 3. Resolve MCP Servers
-        mcp_servers = []
-        mcp_data = agent_data.get("mcp_servers", {})
-        # Can be a dictionary or a list
-        if isinstance(mcp_data, dict):
-            for name, server_cfg in mcp_data.items():
-                mcp_servers.append(self._parse_mcp_server(name, server_cfg))
-        elif isinstance(mcp_data, list):
-            for server_cfg in mcp_data:
-                name = server_cfg.get("name")
-                if not name:
-                    raise ValueError("MCP server in list configuration must have a 'name' field.")
-                mcp_servers.append(self._parse_mcp_server(name, server_cfg))
+        return agent_data, prompt_manager, system_prompt, tools
 
+    def _append_mcp_tools(
+        self,
+        tools: list[Any],
+        agent_data: AgentConfigSchema,
+        mcp_tools_by_server: dict[str, list[dict[str, Any]]],
+    ) -> None:
+        """Wrap already-discovered MCP tool metadata into Antigravity tools and append them."""
+        from src.mcp_integration.client import make_mcp_tool_callable  # noqa: PLC0415
+
+        for mcp_name, mcp_tools in mcp_tools_by_server.items():
+            mcp_cfg = agent_data.mcp_servers[mcp_name]
+            for tool_info in mcp_tools:
+                tool_name = tool_info["name"]
+
+                # Check for tool retry override
+                tool_retry = None
+                if tool_name in agent_data.tool_settings:
+                    tool_retry = agent_data.tool_settings[tool_name].retry
+
+                # Create wrapper callable and wrap it with retry
+                mcp_callable = make_mcp_tool_callable(
+                    mcp_cfg, tool_name, tool_info.get("description")
+                )
+                wrapped_mcp_callable = wrap_tool_with_retry(
+                    mcp_callable, agent_data.retry, tool_retry
+                )
+                traced_mcp_callable = trace_tool(wrapped_mcp_callable)
+
+                # Declare the MCP input schema explicitly. The SDK otherwise derives the function
+                # declaration from the Python signature (callable_to_tool_proto), and the MCP
+                # wrapper is `(**kwargs)` — which would advertise a tool with no parameters at all.
+                tools.append(ToolWithSchema(traced_mcp_callable, tool_info["input_schema"]))
+
+    def _finalize(
+        self,
+        agent_data: AgentConfigSchema,
+        prompt_manager: PromptManager,
+        system_prompt: str,
+        tools: list[Any],
+        kwargs: dict[str, Any],
+    ) -> BaseAgent:
+        """Resolve remaining runtime settings and assemble the final AntigravityAgent."""
         # 4. Resolve app_data_dir to absolute path if specified
-        app_data_dir = agent_data.get("app_data_dir")
+        app_data_dir = agent_data.app_data_dir
         if app_data_dir:
             app_data_dir = os.path.abspath(app_data_dir)
-
-        # Allow overrides from kwargs
-        model = kwargs.get("model") or agent_data.get("model")
-        api_key = kwargs.get("api_key") or agent_data.get("api_key")
 
         # Build LocalAgentConfig
         local_config = LocalAgentConfig(
             system_instructions=system_prompt,
             tools=tools or None,
-            mcp_servers=mcp_servers or None,
+            mcp_servers=None,
             app_data_dir=app_data_dir,
-            model=model,
-            api_key=api_key,
+            model=agent_data.model,
+            api_key=agent_data.api_key or kwargs.get("api_key"),
         )
 
-        default_user_prompt_source = agent_data.get("user_prompt_path") or agent_data.get(
-            "user_prompt"
-        )
-        default_user_prompt_format = agent_data.get("user_prompt_format", "f-string")
+        default_user_prompt_source = agent_data.user_prompt_path or agent_data.user_prompt
+        default_user_prompt_format = agent_data.user_prompt_format or "f-string"
 
         return AntigravityAgent(
             config=local_config,
             prompt_manager=prompt_manager,
             default_user_prompt_source=default_user_prompt_source,
             default_user_prompt_format=default_user_prompt_format,
-            retry_config=retry_config,
+            retry_config=agent_data.retry,
         )
 
-    def _parse_mcp_server(self, name: str, cfg: dict[str, Any]) -> Any:
-        """Parse dictionary configuration into Google Antigravity MCP types."""
-        conn_type = cfg.get("type", "stdio")
-        if conn_type == "stdio":
+    def _parse_mcp_server(self, name: str, cfg: McpServerConfigSchema) -> Any:
+        """Parse configuration schema into Google Antigravity MCP types."""
+        if cfg.type == "stdio":
             return McpStdioServer(
                 name=name,
-                command=cfg.get("command", ""),
-                args=cfg.get("args", []),
-                enabled_tools=cfg.get("enabled_tools"),
-                disabled_tools=cfg.get("disabled_tools"),
+                command=cfg.command or "",
+                args=cfg.args or [],
+                enabled_tools=cfg.enabled_tools,
+                disabled_tools=cfg.disabled_tools,
             )
-        elif conn_type == "http":
+        elif cfg.type == "http":
             return McpStreamableHttpServer(
                 name=name,
-                url=cfg.get("url", ""),
-                headers=cfg.get("headers"),
-                timeout=float(cfg.get("timeout", 30.0)),
-                sse_read_timeout=float(cfg.get("sse_read_timeout", 300.0)),
-                terminate_on_close=bool(cfg.get("terminate_on_close", True)),
-                enabled_tools=cfg.get("enabled_tools"),
-                disabled_tools=cfg.get("disabled_tools"),
+                url=cfg.url or "",
+                headers=cfg.headers,
+                timeout=float(cfg.timeout),
+                sse_read_timeout=float(cfg.sse_read_timeout),
+                terminate_on_close=bool(cfg.terminate_on_close),
+                enabled_tools=cfg.enabled_tools,
+                disabled_tools=cfg.disabled_tools,
             )
         else:
-            raise ValueError(f"Unsupported MCP server connection type: {conn_type}")
+            raise ValueError(f"Unsupported MCP server connection type: {cfg.type}")
