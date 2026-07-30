@@ -27,3 +27,11 @@ agent:
   tools:
     - "search_vectordb"
     - "get_weather"
+
+phoenix:
+  enabled: true
+  project_name: "agentic-template"
+  collector_endpoint: "http://localhost:6006/v1/traces"
+  host: "localhost"
+  port: 6006
+  auto_instrument: true

@@ -66,6 +66,16 @@ class ToolSettingsSchema(BaseModel):
     allowed_answer_fields: list[str] = Field(default_factory=list)
 
 
+class PhoenixConfigSchema(BaseModel):
+    enabled: bool = True
+    project_name: str = "agentic-template"
+    collector_endpoint: str | None = None
+    host: str | None = None
+    port: int | None = None
+    auto_instrument: bool = True
+    api_key: str | None = None
+
+
 class AgentConfigSchema(BaseModel):
     name: str
     model: str | None = None
@@ -85,6 +95,7 @@ class AgentConfigSchema(BaseModel):
     embedding_model: EmbeddingModelConfigSchema | None = None
     tool_settings: dict[str, ToolSettingsSchema] = Field(default_factory=dict)
     retry: RetryConfig = Field(default_factory=RetryConfig)
+    phoenix: PhoenixConfigSchema | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -162,3 +173,4 @@ class AgentConfigSchema(BaseModel):
 
 class AgentYamlConfig(BaseModel):
     agent: AgentConfigSchema
+    phoenix: PhoenixConfigSchema | None = None

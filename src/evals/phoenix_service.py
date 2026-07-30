@@ -1,17 +1,35 @@
 import asyncio
 import os
 import time
-from typing import cast
+from typing import Any, cast
 from unittest.mock import AsyncMock, patch
 
 import phoenix as px
+import yaml
 from phoenix.otel import register
 
+from src.agents.config import AgentYamlConfig, PhoenixConfigSchema
 from src.agents.google_antigravity import AntigravityAgent, AntigravityAgentGenerator
 from src.tools.qdrant_db import QdrantVectorDB
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def _load_phoenix_config(
+    config_path: str = "configs/agent_config.yaml",
+) -> PhoenixConfigSchema | None:
+    """Loads Phoenix configuration parameters from YAML config if available."""
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+            if data:
+                parsed = AgentYamlConfig.model_validate(data)
+                return parsed.phoenix or (parsed.agent.phoenix if parsed.agent else None)
+        except Exception as e:
+            logger.warning(f"Could not load phoenix config from {config_path}: {e}")
+    return None
 
 
 def get_weather(location: str) -> str:
@@ -113,60 +131,78 @@ async def run_demo_agent_run():
     logger.info("Spans successfully generated and sent to Arize Phoenix collector!")
 
 
+def _get_launch_kwargs(phoenix_config: PhoenixConfigSchema | None) -> dict[str, Any]:
+    """Builds keyword arguments for px.launch_app from phoenix config."""
+    kwargs: dict[str, Any] = {}
+    if phoenix_config and phoenix_config.host:
+        kwargs["host"] = phoenix_config.host
+    if phoenix_config and phoenix_config.port:
+        kwargs["port"] = phoenix_config.port
+    return kwargs
+
+
+def _wait_for_shutdown(session_url: str) -> None:
+    """Keeps the service running locally until user input or interrupt."""
+    logger.info("Arize Phoenix is now active.")
+    logger.info(f"Open your browser and navigate to: {session_url}")
+    try:
+        input("\nPress Enter to stop the Arize Phoenix service and exit...\n")
+    except (EOFError, KeyboardInterrupt):
+        logger.info("Non-interactive session detected or interrupted.")
+        try:
+            while True:
+                time.sleep(3600)
+        except KeyboardInterrupt:
+            pass
+    logger.info("Stopping Arize Phoenix...")
+
+
 def main():
     logger.info("Starting Arize Phoenix Observability Service...")
 
-    collector_endpoint = os.getenv("PHOENIX_COLLECTOR_ENDPOINT")
+    phoenix_config = _load_phoenix_config("configs/agent_config.yaml")
+
+    collector_endpoint = os.getenv("PHOENIX_COLLECTOR_ENDPOINT") or (
+        phoenix_config.collector_endpoint if phoenix_config else None
+    )
+    project_name = (
+        phoenix_config.project_name
+        if phoenix_config and phoenix_config.project_name
+        else "agentic-template"
+    )
+    auto_instrument = (
+        phoenix_config.auto_instrument
+        if phoenix_config and phoenix_config.auto_instrument is not None
+        else True
+    )
+
     session_url = None
 
     if collector_endpoint:
-        logger.info(f"PHOENIX_COLLECTOR_ENDPOINT is set to {collector_endpoint}.")
+        logger.info(f"Collector endpoint is set to {collector_endpoint}.")
         logger.info(
             "Skipping local launch_app() and sending traces directly to the configured collector."
         )
     else:
-        # 1. Launch Phoenix application
-        # By default, this starts the collector server (typically on http://localhost:6006)
-        session = px.launch_app()
+        session = px.launch_app(**_get_launch_kwargs(phoenix_config))
         if session:
             logger.info(f"Phoenix UI and OTLP Collector are running at: {session.url}")
             session_url = session.url
 
-    # 2. Register OpenTelemetry Tracer Provider with Phoenix-aware defaults
-    # Uses PHOENIX_COLLECTOR_ENDPOINT env var if set, otherwise defaults to localhost:4317
     register(
-        project_name="agentic-template",
-        auto_instrument=True,
+        project_name=project_name,
+        endpoint=collector_endpoint,
+        auto_instrument=auto_instrument,
     )
-    logger.info("OpenTelemetry global Tracer Provider registered.")
+    logger.info(f"OpenTelemetry global Tracer Provider registered (project: '{project_name}').")
 
-    # 3. Run a quick demo agent session to populate the dashboard with traces
     try:
         asyncio.run(run_demo_agent_run())
     except Exception as e:
         logger.error(f"Failed to execute demo agent run: {e}")
 
-    # 4. Keep the service running (only if we launched it locally)
     if not collector_endpoint and session_url:
-        logger.info("Arize Phoenix is now active.")
-        logger.info(f"Open your browser and navigate to: {session_url}")
-
-        try:
-            input("\nPress Enter to stop the Arize Phoenix service and exit...\n")
-        except EOFError:
-            logger.info(
-                "Non-interactive session detected. Keep running until interrupted (Ctrl+C)..."
-            )
-
-            try:
-                while True:
-                    time.sleep(3600)
-            except KeyboardInterrupt:
-                pass
-        except KeyboardInterrupt:
-            pass
-
-        logger.info("Stopping Arize Phoenix...")
+        _wait_for_shutdown(session_url)
     else:
         logger.info("Traces successfully sent to the configured collector.")
 
