@@ -61,9 +61,9 @@ async def lifespan(app: FastAPI):
                 from phoenix.otel import register  # noqa: PLC0415
 
                 collector_endpoint = (
-                    phoenix_config.collector_endpoint
-                    if phoenix_config and phoenix_config.collector_endpoint
-                    else os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:4317")
+                    os.getenv("PHOENIX_COLLECTOR_ENDPOINT")
+                    or (phoenix_config.collector_endpoint if phoenix_config else None)
+                    or "http://localhost:4317"
                 )
                 project_name = (
                     phoenix_config.project_name
