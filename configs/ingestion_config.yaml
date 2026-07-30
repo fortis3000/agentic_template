@@ -10,6 +10,7 @@ embedding_model:
   provider: "google"
   model: "gemini-embedding-001"
   dimensions: 3072
+  image_dimensions: 3072
 vectordb:
   type: "qdrant"
   host: "localhost"

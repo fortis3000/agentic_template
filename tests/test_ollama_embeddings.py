@@ -12,6 +12,7 @@ async def test_ollama_embedding_client():
         provider="ollama",
         model="nomic-embed-text",
         dimensions=3,
+        image_dimensions=3,
         supported_data_types=["text"],
     )
     client = EmbeddingModelFactory.create(cfg)
@@ -42,6 +43,7 @@ async def test_ollama_embedding_client():
         provider="ollama",
         model="nomic-embed-text",
         dimensions=5,  # Mismatches length 3 of returned mock
+        image_dimensions=5,
         supported_data_types=["text"],
     )
     client_bad = EmbeddingModelFactory.create(cfg_bad_dims)

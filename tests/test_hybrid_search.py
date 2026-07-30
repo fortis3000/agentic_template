@@ -15,6 +15,7 @@ async def test_qdrant_hybrid_and_multimodal_search():
         collection_name=collection_name,
         vector_size=3,
         distance="Cosine",
+        image_vector_size=512,
     )
 
     # 2. Insert points

@@ -267,7 +267,7 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
         """
         self.prompt_base_dir = prompt_base_dir
 
-    def create_agent(  # noqa: PLR0912
+    def create_agent(
         self,
         config: str | AgentYamlConfig,
         system_variables: dict[str, Any] | None = None,
@@ -276,6 +276,10 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
         **kwargs: Any,
     ) -> BaseAgent:
         """Create and configure a PydanticAIAgent from a configuration file or pre-loaded config.
+
+        Discovers MCP tools synchronously, which blocks the calling thread while each configured
+        MCP server starts. Callers already running on an event loop must use
+        :meth:`create_agent_async` instead.
 
         Args:
             config: Path to the YAML configuration file or pre-loaded AgentYamlConfig.
@@ -287,6 +291,48 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
         Returns:
             An instance of PydanticAIAgent.
         """
+        agent_data, prompt_manager, system_prompt, tools = self._resolve_config(
+            config, system_variables, tools_registry, tools_config_path, **kwargs
+        )
+        mcp_tools_by_server = {
+            name: McpServerFactory.fetch_tools_sync(cfg)
+            for name, cfg in agent_data.mcp_servers.items()
+        }
+        self._append_mcp_tools(tools, agent_data, mcp_tools_by_server)
+        return self._finalize(agent_data, prompt_manager, system_prompt, tools, kwargs)
+
+    async def create_agent_async(
+        self,
+        config: str | AgentYamlConfig,
+        system_variables: dict[str, Any] | None = None,
+        tools_registry: dict[str, Callable[..., Any]] | None = None,
+        tools_config_path: str | None = None,
+        **kwargs: Any,
+    ) -> BaseAgent:
+        """Create a PydanticAIAgent without blocking the event loop on MCP server startup.
+
+        Identical to :meth:`create_agent` except that MCP tool discovery is awaited, so other
+        coroutines — including in-flight SSE streams — keep running while MCP servers start.
+        """
+        agent_data, prompt_manager, system_prompt, tools = self._resolve_config(
+            config, system_variables, tools_registry, tools_config_path, **kwargs
+        )
+        mcp_tools_by_server = {
+            name: await McpServerFactory.fetch_tools(cfg)
+            for name, cfg in agent_data.mcp_servers.items()
+        }
+        self._append_mcp_tools(tools, agent_data, mcp_tools_by_server)
+        return self._finalize(agent_data, prompt_manager, system_prompt, tools, kwargs)
+
+    def _resolve_config(
+        self,
+        config: str | AgentYamlConfig,
+        system_variables: dict[str, Any] | None = None,
+        tools_registry: dict[str, Callable[..., Any]] | None = None,
+        tools_config_path: str | None = None,
+        **kwargs: Any,
+    ) -> tuple[AgentConfigSchema, PromptManager, str, list[Any]]:
+        """Validate the config and resolve the system prompt and all non-MCP tools."""
         if isinstance(config, str):
             # Load and parse YAML config
             with open(config, encoding="utf-8") as f:
@@ -332,11 +378,17 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
                     f"Tool '{tool_name}' listed in config but not provided in tools_registry."
                 )
 
-        # 4.5. Resolve MCP Server tools
+        return agent_data, prompt_manager, system_prompt, tools
 
-        for mcp_name, mcp_cfg in agent_data.mcp_servers.items():
-            # Synchronously fetch tools
-            mcp_tools = McpServerFactory.fetch_tools_sync(mcp_cfg)
+    def _append_mcp_tools(
+        self,
+        tools: list[Any],
+        agent_data: AgentConfigSchema,
+        mcp_tools_by_server: dict[str, list[dict[str, Any]]],
+    ) -> None:
+        """Wrap already-discovered MCP tool metadata into Pydantic AI tools and append them."""
+        for mcp_name, mcp_tools in mcp_tools_by_server.items():
+            mcp_cfg = agent_data.mcp_servers[mcp_name]
             for tool_info in mcp_tools:
                 tool_name = tool_info["name"]
 
@@ -346,7 +398,9 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
                     tool_retry = agent_data.tool_settings[tool_name].retry
 
                 # Create wrapper callable and wrap it with retry
-                mcp_callable = make_mcp_tool_callable(mcp_cfg, tool_name)
+                mcp_callable = make_mcp_tool_callable(
+                    mcp_cfg, tool_name, tool_info.get("description")
+                )
                 wrapped_mcp_callable = wrap_tool_with_retry(
                     mcp_callable, agent_data.retry, tool_retry
                 )
@@ -363,6 +417,15 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
                 )
                 tools.append(pydantic_tool)
 
+    def _finalize(
+        self,
+        agent_data: AgentConfigSchema,
+        prompt_manager: PromptManager,
+        system_prompt: str,
+        tools: list[Any],
+        kwargs: dict[str, Any],
+    ) -> BaseAgent:
+        """Build the model and assemble the final PydanticAIAgent."""
         # 5. Resolve Model configuration via factory
         model_instance = ModelFactory.create_model(
             provider=agent_data.provider,

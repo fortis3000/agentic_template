@@ -18,14 +18,18 @@ tools:
     type: "vectordb_search"
     config:
       collection_name: "default_collection"
-      # Embedding model configuration:
-      # - Google text-embedding-004: ~$0.000025 / 1k tokens (requires GEMINI_API_KEY)
-      # - OpenAI text-embedding-3-small: ~$0.00002 / 1k tokens (requires OPENAI_API_KEY)
-      # - Ollama nomic-embed-text: Zero API cost local deployment
+      # Embedding model configuration. `dimensions` and `image_dimensions` must match what the
+      # chosen model actually returns, and must match the dimensions the collection was created
+      # with - a mismatch fails every embed and every search.
+      # - Google gemini-embedding-001: 3072 dims, multimodal (requires GEMINI_API_KEY)
+      # - Google text-embedding-004: 768 dims, text only (requires GEMINI_API_KEY)
+      # - OpenAI text-embedding-3-small: 1536 dims, text only (requires OPENAI_API_KEY)
+      # - Ollama nomic-embed-text: 768 dims, text only, zero API cost local deployment
       embedding_model:
         provider: "google"
         model: "gemini-embedding-001"
         dimensions: 3072
+        image_dimensions: 3072
       # VectorDB configuration:
       # - location: ":memory:" (in-memory for local tests)
       # - host: "localhost", port: 6333 (persistent Qdrant service with Docker volume mount)

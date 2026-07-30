@@ -14,8 +14,12 @@ class BaseVectorDB(ABC):
         collection_name: str,
         vector_size: int,
         distance: str = "Cosine",
+        image_vector_size: int | None = None,
     ) -> None:
-        """Create a collection/index with specified vector size and distance metric."""
+        """Create a collection/index with specified vector size and distance metric.
+
+        ``image_vector_size`` defaults to ``vector_size`` when not supplied.
+        """
         pass
 
     @abstractmethod

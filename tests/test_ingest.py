@@ -50,6 +50,7 @@ async def test_ingestion_pipeline_delta_updates(tmp_path):
             provider="google",
             model="text-embedding-004",
             dimensions=4,
+            image_dimensions=4,
         ),
         vectordb={
             "type": "qdrant",

@@ -65,7 +65,7 @@ class ToolFactory:
         return tool_class(**config)
 
     @classmethod
-    def load_from_yaml(cls, filepath: str) -> Dict[str, Callable]:
+    def load_from_yaml(cls, filepath: str, strict: bool = True) -> Dict[str, Callable]:
         """Load tools from a YAML configuration file.
 
         Args:
@@ -78,6 +78,8 @@ class ToolFactory:
             with open(filepath, encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
         except FileNotFoundError:
+            if strict:
+                raise
             logger.error(f"Tools configuration file not found at {filepath}")
             return {}
 
@@ -91,6 +93,8 @@ class ToolFactory:
                     type=tool_data.get("type"), config=tool_data.get("config", {})
                 )
             except Exception as e:
+                if strict:
+                    raise ValueError(f"Invalid tool configuration for '{tool_name}': {e}") from e
                 logger.error(f"Invalid tool configuration structure for '{tool_name}': {e}")
                 continue
 
@@ -102,6 +106,8 @@ class ToolFactory:
                 tool_instance = cls.create(parsed_config.type, parsed_config.config)
                 tools_registry[tool_name] = tool_instance.get_callable()
             except Exception as e:
+                if strict:
+                    raise ValueError(f"Failed to instantiate tool '{tool_name}': {e}") from e
                 logger.error(f"Failed to instantiate tool '{tool_name}': {e}")
 
         return tools_registry

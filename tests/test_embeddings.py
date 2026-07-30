@@ -2,6 +2,7 @@ from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import pytest
+from google.genai import types
 from pydantic import ValidationError
 
 from src.agents.config import EmbeddingModelConfigSchema
@@ -47,6 +48,7 @@ async def test_google_embedding_client_compatibility():
         provider="google",
         model="text-embedding-004",
         dimensions=768,
+        image_dimensions=768,
     )
     client = EmbeddingModelFactory.create(cfg)
 
@@ -61,6 +63,7 @@ async def test_openai_embedding_client_compatibility():
         provider="openai",
         model="text-embedding-3-small",
         dimensions=1536,
+        image_dimensions=1536,
     )
     client = EmbeddingModelFactory.create(cfg)
 
@@ -75,6 +78,7 @@ async def test_google_embedding_client_generation():
         provider="google",
         model="text-embedding-004",
         dimensions=4,
+        image_dimensions=4,
     )
     client = EmbeddingModelFactory.create(cfg)
 
@@ -89,7 +93,11 @@ async def test_google_embedding_client_generation():
         res = await client.embed_text("hello world")
         assert res.embedding == [0.1, 0.2, 0.3, 0.4]
         assert res.dimensions == 4  # noqa: PLR2004
-        mock_embed.assert_called_once_with(model="text-embedding-004", contents="hello world")
+        mock_embed.assert_called_once_with(
+            model="text-embedding-004",
+            contents="hello world",
+            config=types.EmbedContentConfig(output_dimensionality=4),
+        )
 
 
 @pytest.mark.asyncio
@@ -99,6 +107,7 @@ async def test_google_embedding_client_batch_generation():
         provider="google",
         model="text-embedding-004",
         dimensions=4,
+        image_dimensions=4,
     )
     client = EmbeddingModelFactory.create(cfg)
 
@@ -117,4 +126,8 @@ async def test_google_embedding_client_batch_generation():
         assert res.embeddings[0] == [0.1, 0.2, 0.3, 0.4]
         assert res.embeddings[1] == [0.5, 0.6, 0.7, 0.8]
         assert res.dimensions == 4  # noqa: PLR2004
-        mock_embed.assert_called_once_with(model="text-embedding-004", contents=["hello", "world"])
+        mock_embed.assert_called_once_with(
+            model="text-embedding-004",
+            contents=["hello", "world"],
+            config=types.EmbedContentConfig(output_dimensionality=4),
+        )

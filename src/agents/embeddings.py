@@ -97,12 +97,17 @@ class GoogleEmbeddingClient(BaseEmbeddingClient):
         logger.info(f"Generating Google embedding for text (model: {self.config.model})...")
         # Run synchronous call in thread pool to prevent blocking event loop
         loop = asyncio.get_running_loop()
+        embed_kwargs: dict[str, Any] = {
+            "model": self.config.model,
+            "contents": text,
+        }
+        if self.config.dimensions:
+            embed_kwargs["config"] = types.EmbedContentConfig(
+                output_dimensionality=self.config.dimensions
+            )
         raw_response = await loop.run_in_executor(
             None,
-            lambda: self.client.models.embed_content(
-                model=self.config.model,
-                contents=text,
-            ),
+            lambda: self.client.models.embed_content(**embed_kwargs),
         )
         response: Any = raw_response
         # response.embeddings[0].values contains the floats
@@ -130,12 +135,17 @@ class GoogleEmbeddingClient(BaseEmbeddingClient):
 
         loop = asyncio.get_running_loop()
         part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
+        embed_kwargs: dict[str, Any] = {
+            "model": self.config.model,
+            "contents": part,
+        }
+        if self.config.dimensions:
+            embed_kwargs["config"] = types.EmbedContentConfig(
+                output_dimensionality=self.config.dimensions
+            )
         raw_response = await loop.run_in_executor(
             None,
-            lambda: self.client.models.embed_content(
-                model=self.config.model,
-                contents=part,
-            ),
+            lambda: self.client.models.embed_content(**embed_kwargs),
         )
         response: Any = raw_response
         if (
@@ -156,12 +166,17 @@ class GoogleEmbeddingClient(BaseEmbeddingClient):
     async def embed_batch(self, texts: list[str]) -> BatchEmbeddingResponse:
         logger.info(f"Generating Google embeddings for batch of {len(texts)} texts...")
         loop = asyncio.get_running_loop()
+        embed_kwargs: dict[str, Any] = {
+            "model": self.config.model,
+            "contents": cast(Any, texts),
+        }
+        if self.config.dimensions:
+            embed_kwargs["config"] = types.EmbedContentConfig(
+                output_dimensionality=self.config.dimensions
+            )
         raw_response = await loop.run_in_executor(
             None,
-            lambda: self.client.models.embed_content(
-                model=self.config.model,
-                contents=cast(Any, texts),
-            ),
+            lambda: self.client.models.embed_content(**embed_kwargs),
         )
         response: Any = raw_response
         # For batches, response.embeddings is a list of ContentEmbedding objects
@@ -173,6 +188,11 @@ class GoogleEmbeddingClient(BaseEmbeddingClient):
         ]
         if not embeddings_list:
             raise ValueError("Empty batch embeddings returned from Google API.")
+        if len(embeddings_list) != len(texts):
+            raise ValueError(
+                f"Embedding count mismatch: requested {len(texts)}, "
+                f"received {len(embeddings_list)}. Some inputs may have been dropped by the API."
+            )
 
         dims = self.config.dimensions or len(embeddings_list[0])
         return BatchEmbeddingResponse(

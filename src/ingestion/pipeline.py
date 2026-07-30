@@ -193,7 +193,11 @@ class IngestionPipeline:
             self.config.embedding_model.dimensions = dim
 
         # Ensure collection exists in VectorDB
-        await vectordb.create_collection(self.config.collection_name, vector_size=dim)
+        await vectordb.create_collection(
+            self.config.collection_name,
+            vector_size=dim,
+            image_vector_size=self.config.embedding_model.image_dimensions,
+        )
 
         while True:
             cursor.execute(

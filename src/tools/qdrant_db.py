@@ -52,7 +52,7 @@ class QdrantVectorDB(BaseVectorDB):
 
     def __init__(
         self,
-        host: str = "localhost",
+        host: str | None = None,
         port: int = 6333,
         url: str | None = None,
         location: str | None = None,
@@ -61,10 +61,14 @@ class QdrantVectorDB(BaseVectorDB):
         """Initialize the Async Qdrant Client.
 
         Allows in-memory execution via location=':memory:'.
+        Host resolution order: explicit arg > QDRANT_HOST env var > 'localhost' default.
         """
         self.location = location
         self.url = url
-        self.host = os.getenv("QDRANT_HOST") or host
+        if host is None or host == "localhost":
+            self.host = os.getenv("QDRANT_HOST") or host or "localhost"
+        else:
+            self.host = host
         self.port = port
         self.kwargs = kwargs
 
@@ -98,8 +102,18 @@ class QdrantVectorDB(BaseVectorDB):
         collection_name: str,
         vector_size: int,
         distance: str = "Cosine",
+        image_vector_size: int | None = None,
     ) -> None:
-        """Create a Qdrant collection supporting dense, sparse and image vector keys if it does not exist."""
+        """Create a Qdrant collection supporting dense, sparse and image vector keys if it does not exist.
+
+        Args:
+            collection_name: Name of the collection to create.
+            vector_size: Dimension of the dense text vector.
+            distance: Distance metric name ('Cosine', 'Euclid'/'L2' or 'Dot').
+            image_vector_size: Dimension of the image vector. Defaults to ``vector_size``, which is
+                correct whenever one multimodal model embeds both text and images.
+        """
+        image_vector_size = image_vector_size if image_vector_size is not None else vector_size
         tracer = trace.get_tracer("qdrant-db")
         with tracer.start_as_current_span("create_collection") as span:
             span.set_attribute("db.system", "qdrant")
@@ -115,13 +129,13 @@ class QdrantVectorDB(BaseVectorDB):
             exists = await self.client.collection_exists(collection_name)
             if not exists:
                 logger.info(
-                    f"Creating collection '{collection_name}' with dense (dim: {vector_size}), image (dim: 512) and sparse support."
+                    f"Creating collection '{collection_name}' with dense (dim: {vector_size}), image (dim: {image_vector_size}) and sparse support."
                 )
                 await self.client.create_collection(
                     collection_name=collection_name,
                     vectors_config={
                         "dense": VectorParams(size=vector_size, distance=dist),
-                        "image": VectorParams(size=512, distance=dist),
+                        "image": VectorParams(size=image_vector_size, distance=dist),
                     },
                     sparse_vectors_config={"sparse": SparseVectorParams()},
                 )

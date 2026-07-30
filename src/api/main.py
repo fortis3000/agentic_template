@@ -32,46 +32,6 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-ingestion_queue: asyncio.Queue = asyncio.Queue()
-ingestion_worker_tasks: dict[str, asyncio.Task | None] = {"worker": None}
-
-
-async def ingestion_worker() -> None:
-    """Background worker processing document ingestion tasks from the queue."""
-    logger.info("Starting background ingestion worker.")
-    while True:
-        try:
-            task_data = await ingestion_queue.get()
-        except asyncio.CancelledError:
-            logger.info("Ingestion worker cancelled.")
-            break
-
-        try:
-            filepath = task_data["filepath"]
-            file_bytes = task_data["file_bytes"]
-            mime_type = task_data["mime_type"]
-            config = task_data["config"]
-            vectordb = task_data["vectordb"]
-            embed_client = task_data["embed_client"]
-
-            logger.info(f"Processing background ingestion for: {filepath}")
-            from src.ingestion.helper import ingest_document  # noqa: PLC0415
-
-            await ingest_document(
-                filepath=filepath,
-                file_bytes=file_bytes,
-                mime_type=mime_type,
-                config=config,
-                vectordb=vectordb,
-                embed_client=embed_client,
-            )
-            logger.info(f"Successfully processed background ingestion for: {filepath}")
-        except Exception as e:
-            logger.error(f"Error in background ingestion worker: {e}", exc_info=True)
-        finally:
-            ingestion_queue.task_done()
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize Phoenix OpenTelemetry tracing (only if enabled via env and not under pytest)
@@ -89,19 +49,7 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"Failed to initialize Arize Phoenix tracing: {e}")
 
-    # Start background ingestion worker
-    ingestion_worker_tasks["worker"] = asyncio.create_task(ingestion_worker())
-
     yield
-
-    # Cancel background ingestion worker on shutdown
-    w_task = ingestion_worker_tasks["worker"]
-    if w_task:
-        w_task.cancel()
-        try:
-            await w_task
-        except asyncio.CancelledError:
-            pass
 
     # Close persistent MCP connections
     from src.mcp_integration import McpConnectionManager  # noqa: PLC0415
@@ -779,6 +727,7 @@ async def run_agent_in_background(  # noqa: PLR0912, PLR0915
     config_path: str | None = None,
 ):
     """Runs agent execution, saves logs, and pumps events into the active stream queue."""
+    validated_config: AgentYamlConfig | None = None
     token_context = current_session_id.set(session_id)
     loop_context = current_loop.set(asyncio.get_running_loop())
     try:
@@ -847,7 +796,7 @@ async def run_agent_in_background(  # noqa: PLR0912, PLR0915
         # Merge them into a copy of STREAM_TOOLS_REGISTRY
         merged_registry = {**STREAM_TOOLS_REGISTRY, **wrapped_dynamic_tools}
 
-        agent = generator.create_agent(
+        agent = await generator.create_agent_async(
             validated_config,
             system_variables=system_variables,
             tools_registry=merged_registry,
@@ -922,7 +871,11 @@ async def run_agent_in_background(  # noqa: PLR0912, PLR0915
     except Exception as e:
         logger.error(f"Error running agent: {e}")
         err_msg = str(e)
-        max_attempts = getattr(getattr(validated_config, "agent", None), "retry", None)
+        max_attempts = (
+            getattr(getattr(validated_config, "agent", None), "retry", None)
+            if validated_config
+            else None
+        )
         n_attempts = max_attempts.attempts if max_attempts else 3
         if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "quota" in err_msg.lower():
             friendly_text = (

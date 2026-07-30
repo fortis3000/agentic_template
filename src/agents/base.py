@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -164,3 +165,39 @@ class BaseAgentGenerator(ABC):
             An instance of BaseAgent.
         """
         pass
+
+    async def create_agent_async(
+        self,
+        config: Union[str, "AgentYamlConfig"],
+        system_variables: dict[str, Any] | None = None,
+        tools_registry: dict[str, Any] | None = None,
+        tools_config_path: str | None = None,
+        **kwargs: Any,
+    ) -> BaseAgent:
+        """Create an agent without blocking the running event loop.
+
+        Agent creation can take seconds when it has to start MCP servers, which would otherwise
+        stall every other coroutine on the loop. Generators that can discover their tools
+        asynchronously should override this; the default offloads the synchronous path to a worker
+        thread so no implementation blocks the loop.
+
+        Args:
+            config: Path to the agent configuration file (e.g. YAML) or pre-loaded AgentYamlConfig.
+            system_variables: Optional variables to format the system prompt template.
+            tools_registry: Optional mapping of tool names to Python callables.
+            tools_config_path: Optional path to a YAML file to load tools via ToolFactory.
+            **kwargs: Extra parameters to override configuration fields dynamically.
+
+        Returns:
+            An instance of BaseAgent.
+        """
+        return await asyncio.to_thread(
+            functools.partial(
+                self.create_agent,
+                config,
+                system_variables=system_variables,
+                tools_registry=tools_registry,
+                tools_config_path=tools_config_path,
+                **kwargs,
+            )
+        )

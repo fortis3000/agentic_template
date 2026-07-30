@@ -42,6 +42,10 @@ class EmbeddingModelConfigSchema(BaseModel):
     provider: str
     model: str
     dimensions: int | None = None
+    # Size of the collection's image vector. Required rather than inferred: it must match what the
+    # configured model actually returns from embed_image, or every image search fails with a
+    # Qdrant vector-dimension error.
+    image_dimensions: int
     api_key: str | None = None
     base_url: str | None = None
     supported_data_types: list[str] = Field(default_factory=lambda: ["text"])

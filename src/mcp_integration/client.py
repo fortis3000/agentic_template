@@ -1,12 +1,12 @@
 import asyncio
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
 
-from src.mcp_integration.manager import McpConnectionManager
+from src.mcp_integration.manager import McpConnectionManager, build_session_key
 from src.mcp_integration.server import parse_http_server_kwargs, parse_stdio_server_parameters
 from src.utils.logger import get_logger
 
@@ -16,7 +16,9 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def make_mcp_tool_callable(config: Any, tool_name: str) -> Callable[..., Any]:
+def make_mcp_tool_callable(
+    config: Any, tool_name: str, description: str | None = None
+) -> Callable[..., Any]:
     """Generates an async function that connects to the MCP server and invokes the tool."""
 
     async def call_mcp_tool(**kwargs: Any) -> str:
@@ -31,17 +33,34 @@ def make_mcp_tool_callable(config: Any, tool_name: str) -> Callable[..., Any]:
         ]
         return "\n".join(text_parts)
 
-    # Set name of the function to the tool name for docstrings and mapping
+    # Set name and docstring to the MCP metadata: agent SDKs derive the advertised
+    # tool name and description from these attributes.
     call_mcp_tool.__name__ = tool_name
+    call_mcp_tool.__doc__ = description
     return call_mcp_tool
 
 
 class McpServerFactory:
     """Factory to manage fetching tools from external MCP servers and wrapping them for agents."""
 
+    _tool_cache: ClassVar[dict[str, list[dict[str, Any]]]] = {}
+
     @staticmethod
-    async def fetch_tools(config: Any) -> list[dict[str, Any]]:
-        """Asynchronously connect to an MCP server, list its tools, apply filters, and return metadata."""
+    def _config_key(config: Any) -> str:
+        """Generate a cache key from MCP server configuration."""
+        return build_session_key(config)
+
+    @classmethod
+    async def fetch_tools(cls, config: Any) -> list[dict[str, Any]]:
+        """Asynchronously connect to an MCP server, list its tools, apply filters, and return metadata.
+
+        Results are cached per config key to avoid redundant connections.
+        """
+        cache_key = cls._config_key(config)
+        if cache_key in cls._tool_cache:
+            logger.info(f"Using cached MCP tools for key: {cache_key}")
+            return cls._tool_cache[cache_key]
+
         cfg_type = getattr(config, "type", "stdio")
         if cfg_type == "stdio":
             command = getattr(config, "command", None)
@@ -53,7 +72,9 @@ class McpServerFactory:
                 async with ClientSession(read, write) as session:
                     await session.initialize()
                     result = await session.list_tools()
-                    return McpServerFactory._filter_and_parse_tools(result.tools, config)
+                    parsed = cls._filter_and_parse_tools(result.tools, config)
+                    cls._tool_cache[cache_key] = parsed
+                    return parsed
         elif cfg_type == "http":
             url = getattr(config, "url", None)
             if not url:
@@ -64,7 +85,9 @@ class McpServerFactory:
                 async with ClientSession(read, write) as session:
                     await session.initialize()
                     result = await session.list_tools()
-                    return McpServerFactory._filter_and_parse_tools(result.tools, config)
+                    parsed = cls._filter_and_parse_tools(result.tools, config)
+                    cls._tool_cache[cache_key] = parsed
+                    return parsed
         else:
             logger.warning(f"Unsupported MCP server connection type: {cfg_type}")
             return []
@@ -101,8 +124,18 @@ class McpServerFactory:
 
     @classmethod
     def fetch_tools_sync(cls, config: Any) -> list[dict[str, Any]]:
-        """Synchronously fetch tools from an MCP server configuration without blocking the main event loop."""
+        """Synchronously fetch tools from an MCP server configuration.
+
+        Intended for scripts and other synchronous entry points. Callers already running on an
+        event loop must use the async :meth:`fetch_tools` instead — the thread hand-off below
+        blocks the calling thread until the MCP server has started.
+        """
         import concurrent.futures  # noqa: PLC0415
+
+        cache_key = cls._config_key(config)
+        if cache_key in cls._tool_cache:
+            logger.info(f"Using cached MCP tools for key: {cache_key}")
+            return cls._tool_cache[cache_key]
 
         def run_in_thread():
             return asyncio.run(cls.fetch_tools(config))

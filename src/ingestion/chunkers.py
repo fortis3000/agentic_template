@@ -7,6 +7,14 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _validate_chunk_params(chunk_size: int, chunk_overlap: int) -> None:
+    """Validate that chunk_overlap is strictly less than chunk_size to prevent infinite loops."""
+    if chunk_overlap >= chunk_size:
+        raise ValueError(
+            f"chunk_overlap ({chunk_overlap}) must be less than chunk_size ({chunk_size})"
+        )
+
+
 def dot_product(u: list[float], v: list[float]) -> float:
     return sum(a * b for a, b in zip(u, v))
 
@@ -29,6 +37,7 @@ def fixed_chunker(text: str, chunk_size: int = 500, chunk_overlap: int = 50) -> 
 
     Respects paragraph/sentence boundaries where possible.
     """
+    _validate_chunk_params(chunk_size, chunk_overlap)
     if not text:
         return []
     if len(text) <= chunk_size:
@@ -63,6 +72,7 @@ def fixed_chunker(text: str, chunk_size: int = 500, chunk_overlap: int = 50) -> 
 
 def markdown_chunker(text: str, max_chunk_size: int = 500, chunk_overlap: int = 50) -> list[str]:
     """Splits text along Markdown header boundaries, falling back to fixed chunker if sections are too large."""
+    _validate_chunk_params(max_chunk_size, chunk_overlap)
     if not text:
         return []
 
@@ -99,6 +109,7 @@ async def semantic_chunker(
     chunk_overlap: int = 50,
 ) -> list[str]:
     """Splits text into sentences, calculates cosine distance between adjacent sentences, and groups them."""
+    _validate_chunk_params(max_chunk_size, chunk_overlap)
     if not text:
         return []
 
