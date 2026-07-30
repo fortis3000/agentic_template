@@ -80,6 +80,9 @@ source_paths = [
 also_copy = [
     "src/",
     ".github/",
+    # Runtime YAML the agent/tool loaders read at import time (e.g. configs/tools_config.yaml).
+    # Without these the mutants/ copy raises FileNotFoundError and stats collection fails.
+    "configs/",
 ]
 pytest_add_cli_args_test_selection = [
     "tests/test_retry.py",
@@ -92,6 +95,13 @@ pytest_add_cli_args = [
 ]
 
 [tool.pytest.ini_options]
+# `src` on sys.path is required by mutmut: it derives mutant keys from the path with `src/`
+# stripped (e.g. `tools.text_extractor`), so the tests it runs must import the same way.
+# Consequence: modules under src/ are importable both as `tools.x` and `src.tools.x`, and
+# the two are distinct objects. Modules that register into a factory at import time must
+# therefore import that factory *relatively* (`from .base import ToolFactory`), or the
+# second load overwrites the first's entry and `isinstance` checks fail. See the relative
+# imports in src/tools/qdrant_db.py and src/tools/vectordb_search.py.
 pythonpath = ["src"]
 norecursedirs = ["mutants", ".git", ".venv", ".pytest_cache", ".ruff_cache", "frontend", ".worktrees"]
 
