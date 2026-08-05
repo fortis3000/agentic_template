@@ -57,14 +57,4 @@ This section stockpiles major changes and feature milestones implemented across 
 | `#58`, `4be9db3` | **Dev Tools** | Added environment bootstrap task and GitHub PAT token loading. |
 | `#71`, `43a4ef6` | **Observability** | Added Arize Phoenix YAML configuration schemas (`configs/agent_config.yaml`). |
 
----
 
-## 3. Developer Contribution Workflow
-
-To contribute to this repository:
-1. **Create Worktree**: `bash .agents/skills/gh-cli/scripts/start_issue.sh <issue_number>`
-2. **Implement Feature/Fix**: Add code under `src/` following deep module design principles.
-3. **Add Tests**: Add unit tests under `tests/`.
-4. **Validate**: Run `make precommit` or `uv run pytest`.
-5. **Update Docs**: Modify or add documentation under `docs/modules/` or `docs/guides/`.
-6. **Submit PR**: Submit PR using Conventional Commits and complete `.github/pull_request_template.md`.

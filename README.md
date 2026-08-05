@@ -29,30 +29,37 @@ The codebase documentation is organized into clear architectural specs, subsyste
     ├── pyproject.toml     <- Project configuration for dependencies, linting, formatting, etc.
     ├── uv.lock            <- The lock file for reproducing the analysis environment.
     ├── .env.example       <- Template for environment variables and API keys
+    ├── configs            <- Agent and Arize Phoenix YAML configuration files.
     ├── data
     │   ├── external       <- Data from third party sources.
     │   ├── interim        <- Intermediate data that has been transformed.
     │   ├── processed      <- The final, canonical data sets for modeling.
     │   └── raw            <- The original, immutable data dump.
     │
+    ├── docs               <- Structured documentation (architecture, modules, guides).
+    ├── frontend           <- User Web UI (Svelte 5, TypeScript, Vite, Tailwind).
     ├── notebooks          <- Jupyter notebooks.
-    │
-    ├── references         <- Data dictionaries, manuals, and all other explanatory materials.
-    │
+    ├── references         <- Data dictionaries, manuals, and explanatory materials.
     ├── docker             <- Docker configurations for agent-app and Arize Phoenix setup.
     │
     └── src                <- Source code for use in this project.
         ├── __init__.py    <- Makes src a Python module
         │
-        ├── agents         <- SDK-agnostic agent implementations and orchestration.
+        ├── agents         <- SDK-agnostic agent implementations (Pydantic AI, Antigravity).
         │
-        ├── evals          <- Evaluation frameworks (Arize Phoenix, custom LLM evals).
+        ├── api            <- FastAPI web server, routes, and SSE streaming handlers.
         │
-        ├── prompts        <- System and template prompts.
+        ├── evals          <- Observability frameworks (Arize Phoenix, custom LLM evals).
         │
-        ├── tools          <- Custom tools and functional integrations.
+        ├── ingestion      <- Document text chunking and Qdrant ingestion pipeline.
         │
-        └── utils          <- Shared utilities (e.g., logging)
+        ├── mcp_integration<- Model Context Protocol (MCP) stdio client and connection manager.
+        │
+        ├── prompts        <- System and user prompt templates.
+        │
+        ├── tools          <- Custom tools (Qdrant DB, TextExtractor, Google Sheets).
+        │
+        └── utils          <- Shared utilities (logger, retry framework, PR validator).
 
 ## Logging
 
@@ -141,7 +148,7 @@ You can spawn the Arize Phoenix service and run the agent application in Docker:
    This builds the agent image and launches both the `phoenix` and `agent-app` containers.
 
 2. **Access the Phoenix UI**:
-   Open your browser and navigate to: [http://localhost:6060](http://localhost:6060)
+   Open your browser and navigate to: [http://localhost:6006](http://localhost:6006)
 
 3. **OTLP Endpoints**:
    - gRPC endpoint: `http://localhost:4317`
@@ -299,7 +306,7 @@ source .agents/scripts/load_env.sh
 When run from inside a Git worktree under `.worktrees/`, it falls back to the
 parent `.env`. If you use [direnv](https://direnv.net), the optional (git-ignored)
 `.envrc` runs the same loader automatically on `cd`. See
-[Environment Management](docs/environment_management.md) for the full reference.
+[Developer Quickstart](docs/guides/quickstart.md) for the full reference.
 
 ### Secure Coding Standards
 
@@ -335,13 +342,11 @@ To run all hooks manually across all files:
 uv run pre-commit run --all-files
 ```
 
-## Isolated Development Workflow
+## Developer Workflow & Agent Skills
 
-To ensure secure software development lifecycle (SSDLC) principles, workspace isolation, and reproducible test results, this repository supports and enforces the use of Git worktrees and Docker sandboxing.
+Developer workflows, worktree isolation scripts, pull request templates, and code validation runbooks are maintained directly as **Agent Skills** in the repository under `.agents/skills/`:
 
-Refer to the [.agents/skills/python-coder/SKILL.md](.agents/skills/python-coder/SKILL.md) runbook for the precise workflow steps and exact commands to follow:
+- **Worktree Management & Issue Tracking**: Managed via `.agents/skills/gh-cli/` and `.agents/skills/python-coder/` runbooks (using `start_issue.sh` and `submit_pr.sh`).
+- **Code Review & Quality Validation**: Automated via `.agents/skills/code-review/` and `.agents/skills/precommit/` skills.
+- **TDD & Domain Modeling**: Enforced via `.agents/skills/tdd/` and `.agents/skills/domain-modeling/`.
 
-1. **Worktree Isolation**: Create an isolated Git worktree using `start_issue.sh` and navigate into it.
-2. **Docker Sandboxed Validation**: Run tests, linters, static typing, and security scans in a clean Docker container.
-3. **Submit Pull Request**: Stage changes, commit semantically, push, and create a GitHub PR using `submit_pr.sh`.
-4. **Cleanup**: Remove the temporary worktree and local branch after PR merge.
