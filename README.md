@@ -204,3 +204,16 @@ uv run pre-commit install
 # Manually execute all pre-commit checks
 make precommit
 ```
+
+### Mutation Testing (`make mutate`)
+
+To assess test suite quality and verify that your tests catch bugs, we use `mutmut`.
+
+To run mutation testing on target modules:
+
+```bash
+make mutate
+```
+
+For details on configuration, TUI browsing, and interpreting/suppressing mutants, see the [Mutation Testing Documentation](docs/mutation_testing.md).
+

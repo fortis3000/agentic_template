@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from src.utils.pr_validator import extract_template_sections, validate_pr_body
+from utils.pr_validator import extract_template_sections, validate_pr_body
 
 TEMPLATE_PATH = ".github/pull_request_template.md"
 

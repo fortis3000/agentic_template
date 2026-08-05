@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from src.agents.pydantic_ai import PydanticAIAgent, PydanticAIAgentGenerator
-from src.utils.retry import (
+from utils.retry import (
     RetryConfig,
     is_retryable_exception,
     retry_async,
