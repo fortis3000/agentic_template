@@ -1,39 +1,31 @@
-# Standardized Agentic Project Template - Documentation
+# Standardized Agentic Project Template — Documentation Hub
 
-Welcome to the documentation for the Standardized Agentic Project Template. This documentation directory provides a structured explanation of the codebase components, their design, integrations, and developer workflows.
+Welcome to the documentation for the Standardized Agentic Project Template. This repository provides a framework-agnostic foundation for building autonomous AI agents, multi-agent systems, RAG pipelines, and web interfaces with built-in OpenTelemetry observability.
 
-## Documentation Structure
+---
 
-The documentation is organized into the following sections:
+## Documentation Architecture & Sitemap
 
-- **[README.md](README.md)** (this file): Introduction and documentation roadmap.
-- **[components.md](components.md)**: Detailed breakdown of the repository's modules, including agent SDK abstractions, backend wrappers, observability frameworks, and validation gates.
-- **[frontend.md](frontend.md)**: Breakdown of frontend UI components, styling hooks, and state management specifications.
-- **[environment_management.md](environment_management.md)**: Detailed runtime configurations, packages, API environment parameters, and container networking patterns for backend and frontend.
-- **[ingestion_pipeline.md](ingestion_pipeline.md)**: Specifications for document ingestion, text chunking strategies, embedding generation, and Qdrant syncing.
-- **[rag_operation_guide.md](rag_operation_guide.md)**: End-to-end operational and testing guide for document ingestion, Qdrant vector persistence, and RAG chatbot queries.
-- **[qdrant_guide.md](qdrant_guide.md)**: Qdrant Vector Database guide, sparse vector deduplication, and visual web dashboard UI options.
-- **[arize_phoenix_guide.md](arize_phoenix_guide.md)**: Arize Phoenix OpenTelemetry tracing setup and visual interface step-by-step navigation.
-- **[diagrams.md](diagrams.md)**: Graphical representations of system architecture, RAG vector retrieval, container networking, and Arize Phoenix tracing flow.
+The documentation is organized into three main sections:
 
-## Repository Overview
+### 🏛️ Architecture Specs (`docs/architecture/`)
+- **[System Overview](architecture/system_overview.md)**: Layered topology, component design goals, and system principles.
+- **[Architecture & Flow Diagrams](architecture/diagrams.md)**: Visual Mermaid diagrams covering system architecture, runtime execution, frontend communication, and MCP tool discovery.
+- **[Architectural Decision Records (ADRs)](architecture/design_decisions.md)**: ADRs on Python 3.13 + `uv`, framework-agnostic agents, Tool Factory, Arize Phoenix telemetry, and PR quality gates.
 
-This project template is designed to:
+### 🧩 Subsystem & Module Deep-Dives (`docs/modules/`)
+- **[Tooling Architecture & Tool Factory](modules/tools.md)**: `BaseTool`, `ToolFactory`, Qdrant DB tool, Text Extractor tool, Vector search tool, Google Sheets tool, and Step-by-Step Custom Tool Extension Guide.
+- **[Agent Framework & SDK Abstractions](modules/agents.md)**: `BaseAgent`, `BaseAgentGenerator`, Google Antigravity SDK wrapper, Pydantic AI wrapper, prompt manager, embeddings factory, and Agent Extension Guide.
+- **[Arize Phoenix Observability & Evals](modules/evals_observability.md)**: `phoenix_service.py`, OpenTelemetry spans, trace hierarchy, token metrics, and Phoenix dashboard setup.
+- **[User Frontend UI Subsystem](modules/frontend.md)**: Svelte 5 + TypeScript + Vite + Tailwind UI, reactive `$state` controller (`agent.svelte.ts`), component taxonomy, and API hooks.
+- **[API Gateway & Web Server](modules/api.md)**: FastAPI main server, CORS, endpoints (`/api/chat`, `/api/upload/image`, `/api/upload/document`, `/health`), file validation & image resizing.
+- **[Ingestion Pipeline Subsystem](modules/ingestion.md)**: Fixed-size, Markdown, and Semantic chunking algorithms, document text extraction, and Qdrant indexing pipeline.
+- **[Model Context Protocol (MCP) Subsystem](modules/mcp_integration.md)**: MCP stdio/SSE client, `McpConnectionManager` pool, tool discovery, and server lifecycle.
+- **[Shared Utilities Subsystem](modules/utils.md)**: Structured logger, exponential backoff retry handler (`retry_async`), PR & semantic commit validator.
 
-1. **Accelerate Agent Development**: Establish a clean, standardized workspace utilizing state-of-the-art Python dependencies managed by `uv`.
-2. **Ensure Framework Agnosticism**: Standardize interface patterns so that agents can be built using the Google Antigravity SDK, Pydantic AI, or any other agent framework under a unified API.
-3. **Pave the Road for Secure Coding**: Enforce automatic type checking, security static scans, and validation checks using pre-configured pre-commit git hooks.
-4. **Provide Complete Observability**: Automatically trace agent calls and tool usage out-of-the-box using OpenTelemetry instrumentations routed to Arize Phoenix.
-
-## Developer Contribution Workflow
-
-To contribute to this repository, follow these sequential steps:
-
-1. **Create Worktree**: Spawn an isolated git worktree using the script: `bash .agents/skills/gh-cli/scripts/start_issue.sh <issue_number>`
-2. **Implement the Task**: Write the required features or fixes under the `src/` directory.
-3. **Write Tests**: Implement matching test coverage in the `tests/` directory.
-4. **Run Tests**: Execute `make precommit` locally to run pytest and formatting/linting validations.
-5. **Update Docs**: Modify or add documentation files under the `docs/` folder.
-6. **Commit**: Stage files and commit them using the Conventional Commit format (e.g. `feat(sdk): add new wrapper`).
-7. **Push**: Push your task branch to origin.
-8. **Create a PR & Fill Template**: Submit a pull request and fill the PR template using the `gh` command (e.g. `gh pr create --body-file .github/pull_request_template.md` and filling out the template sections), or via the automated submission script: `bash .agents/skills/gh-cli/scripts/submit_pr.sh <type> [scope] <description>`
+### 📚 Developer Runbooks & Guides (`docs/guides/`)
+- **[Developer Quickstart](guides/quickstart.md)**: Prerequisites, `uv` environment sync, `.env` setup, and pre-commit hooks.
+- **[Execution Runbook & How-To Runs](guides/how_to_runs.md)**: Command guide for running Pydantic AI agent, Ollama agent, FastAPI backend, and Svelte frontend.
+- **[Docker & Qdrant Operations](guides/docker_and_qdrant.md)**: `docker-compose.yml` multi-container orchestration (App, Qdrant, Arize Phoenix).
+- **[RAG Operations & Document Ingestion](guides/rag_and_ingestion.md)**: End-to-end RAG guide for document parsing, chunking configuration, vector indexing, and search queries.
+- **[Testing, Linting & Quality Control](guides/testing_and_validation.md)**: Matrix of quality tools, running `pytest`, Ruff formatting/linting, pre-commit hooks, and PR validation.
