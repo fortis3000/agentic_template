@@ -34,20 +34,57 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize Phoenix OpenTelemetry tracing (only if enabled via env and not under pytest)
-    if "pytest" not in sys.modules and os.getenv("ENABLE_PHOENIX", "true").lower() == "true":
-        try:
-            from phoenix.otel import register  # noqa: PLC0415
+    # Initialize Phoenix OpenTelemetry tracing (only if enabled and not under pytest)
+    if "pytest" not in sys.modules:
+        phoenix_config = None
+        config_path = os.getenv("AGENT_CONFIG_PATH", "configs/agent_config.yaml")
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    data = yaml.safe_load(f)
+                if data:
+                    parsed = AgentYamlConfig.model_validate(data)
+                    phoenix_config = parsed.phoenix or (
+                        parsed.agent.phoenix if parsed.agent else None
+                    )
+            except Exception as e:
+                logger.warning(f"Could not load phoenix config from {config_path}: {e}")
 
-            collector_endpoint = os.getenv("PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:4317")
-            register(
-                project_name="agentic-template",
-                endpoint=collector_endpoint,
-                auto_instrument=True,
-            )
-            logger.info(f"Arize Phoenix OpenTelemetry tracing initialized to {collector_endpoint}.")
-        except Exception as e:
-            logger.error(f"Failed to initialize Arize Phoenix tracing: {e}")
+        enabled = True
+        if phoenix_config is not None:
+            enabled = phoenix_config.enabled
+        elif os.getenv("ENABLE_PHOENIX"):
+            enabled = os.getenv("ENABLE_PHOENIX", "true").lower() == "true"
+
+        if enabled:
+            try:
+                from phoenix.otel import register  # noqa: PLC0415
+
+                collector_endpoint = (
+                    os.getenv("PHOENIX_COLLECTOR_ENDPOINT")
+                    or (phoenix_config.collector_endpoint if phoenix_config else None)
+                    or "http://localhost:4317"
+                )
+                project_name = (
+                    phoenix_config.project_name
+                    if phoenix_config and phoenix_config.project_name
+                    else "agentic-template"
+                )
+                auto_instrument = (
+                    phoenix_config.auto_instrument
+                    if phoenix_config and phoenix_config.auto_instrument is not None
+                    else True
+                )
+                register(
+                    project_name=project_name,
+                    endpoint=collector_endpoint,
+                    auto_instrument=auto_instrument,
+                )
+                logger.info(
+                    f"Arize Phoenix OpenTelemetry tracing initialized (project: {project_name}) to {collector_endpoint}."
+                )
+            except Exception as e:
+                logger.error(f"Failed to initialize Arize Phoenix tracing: {e}")
 
     yield
 

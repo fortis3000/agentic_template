@@ -96,7 +96,30 @@ sequenceDiagram
     Wrapper-->>User: Final response string
 ```
 
+### Arize Phoenix YAML Configuration Initialization
+
+The sequence diagram below details how Arize Phoenix settings are parsed from `configs/agent_config.yaml`, evaluated against environment variables, and passed to OpenTelemetry:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant YAML as agent_config.yaml (phoenix:)
+    participant Config as AgentYamlConfig / PhoenixConfigSchema
+    participant Env as Environment Variables
+    participant App as App Lifespan / phoenix_service.py
+    participant OTel as OpenTelemetry Register
+    participant Phoenix as Arize Phoenix Server
+
+    YAML->>Config: Parse top-level phoenix chapter
+    App->>Config: Read PhoenixConfigSchema parameters
+    App->>Env: Read PHOENIX_COLLECTOR_ENDPOINT & ENABLE_PHOENIX
+    note over App: Apply Precedence: Env Vars > YAML Config > Defaults
+    App->>OTel: register(project_name, endpoint, auto_instrument)
+    OTel->>Phoenix: Establish OTLP HTTP/gRPC exporter stream
+```
+
 ---
+
 
 ## 3. Developer Contribution Flow
 

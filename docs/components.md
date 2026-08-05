@@ -75,11 +75,14 @@ This document provides a technical walkthrough of the core components in the Sta
 
 ## 4. Evals & Observability
 
-### Arize Phoenix Collector (`src/evals/phoenix_service.py`)
+### Arize Phoenix Collector (`src/evals/phoenix_service.py` & `src/agents/config.py`)
 
-- **`px.launch_app()`**: Spawns a local instance of Arize Phoenix hosting an OTLP collector endpoint and visualization dashboard.
+- **`PhoenixConfigSchema`**: Pydantic schema in `src/agents/config.py` defining instance parameters (`enabled`, `project_name`, `collector_endpoint`, `host`, `port`, `auto_instrument`, `api_key`) loaded from the `phoenix:` chapter in YAML configuration files.
+- **`_load_phoenix_config()`**: Helper function in `src/evals/phoenix_service.py` that parses the `phoenix:` YAML section from `configs/agent_config.yaml`.
+- **`px.launch_app()`**: Spawns a local instance of Arize Phoenix hosting an OTLP collector endpoint and visualization dashboard using host/port settings from configuration.
 - **`register(...)`**: Instruments the Python process by configuring global OpenTelemetry providers to emit OpenInference spans. Traces all agents and decorated tool calls automatically.
 - **Demo Script**: Provides mock and live execution modes to verify tracing pathways by calling a dummy weather tool (`get_weather`) and monitoring span outputs.
+
 
 ---
 
