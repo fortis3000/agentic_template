@@ -1,4 +1,26 @@
-# Standartized Agentic Project Template
+# Standardized Agentic Project Template
+
+## 📚 Documentation & Reference Hub
+
+The codebase documentation is organized into clear architectural specs, subsystem module deep-dives, and operational runbooks under the [`docs/`](docs/README.md) folder:
+
+- **[Documentation Hub Index](docs/README.md)**: Main sitemap and change inventory across PRs `#1` to `#71`.
+- **[Architecture Specs](docs/architecture/system_overview.md)**: [System Overview](docs/architecture/system_overview.md) | [Architecture Diagrams](docs/architecture/diagrams.md) | [Design Decisions (ADRs)](docs/architecture/design_decisions.md)
+- **[Architectural Module Deep-Dives](docs/modules/tools.md)**:
+  - 🛠️ [Tooling Architecture & Tool Factory](docs/modules/tools.md) (ToolFactory, Qdrant tool, Text Extractor, Custom Tool Extension Guide)
+  - 🤖 [Agent Framework & SDK Abstractions](docs/modules/agents.md) (BaseAgent, Google Antigravity SDK, Pydantic AI, Agent Extension Guide)
+  - 📊 [Arize Phoenix Observability & Evals](docs/modules/evals_observability.md) (OpenTelemetry spans, token metrics, Phoenix UI)
+  - 🎨 [User Frontend UI Subsystem](docs/modules/frontend.md) (Svelte 5 + Vite + TypeScript, reactive state controller)
+  - ⚡ [API Gateway & Web Server](docs/modules/api.md) (FastAPI main.py, REST endpoints, streaming SSE, file processing)
+  - 📄 [Ingestion Pipeline Subsystem](docs/modules/ingestion.md) (Fixed, Markdown, and Semantic chunkers, Qdrant indexing)
+  - 🔌 [Model Context Protocol (MCP) Subsystem](docs/modules/mcp_integration.md) (Stdio client, connection pool, tool discovery)
+  - ⚙️ [Shared Utilities Subsystem](docs/modules/utils.md) (Logger, exponential backoff retry, PR validator)
+- **[Developer Guides & Runbooks](docs/guides/quickstart.md)**:
+  - 🚀 [Developer Quickstart](docs/guides/quickstart.md) | 💻 [Execution Runbook & How-To Runs](docs/guides/how_to_runs.md)
+  - 🐳 [Docker & Qdrant Operations](docs/guides/docker_and_qdrant.md) | 🔍 [RAG & Document Ingestion Guide](docs/guides/rag_and_ingestion.md)
+  - 🧪 [Testing, Linting & Quality Control](docs/guides/testing_and_validation.md)
+
+---
 
 ## Project Organization
 
@@ -142,7 +164,7 @@ This script will:
 - Execute a demo session (running an agent and a custom weather tool) to generate sample traces.
 - Keep the server running so you can inspect how the agent works directly in the UI.
 
---------
+---
 
 ## Goals
 
