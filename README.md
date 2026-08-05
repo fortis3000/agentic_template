@@ -320,7 +320,6 @@ Secure coding standards are defined in [.agents/CONTEXT.md](file://./.agents/CON
 
 Git pre-commit hooks are configured in [.pre-commit-config.yaml](file://./.pre-commit-config.yaml) to run on commit:
 
-- `end-of-file-fixer` (ensures files end with a single newline)
 - `trailing-whitespace` (trims trailing whitespaces)
 - `Ruff Format` (formats Python code)
 - `Ruff Check` (lints Python code)
