@@ -4,7 +4,7 @@
 
 The codebase documentation is organized into clear architectural specs, subsystem module deep-dives, and operational runbooks under the [`docs/`](docs/README.md) folder:
 
-- **[Documentation Hub Index](docs/README.md)**: Main sitemap and change inventory across PRs `#1` to `#71`.
+- **[Documentation Hub Index](docs/README.md)**: Main sitemap and index for system specs, modules, and runbooks.
 - **[Architecture Specs](docs/architecture/system_overview.md)**: [System Overview](docs/architecture/system_overview.md) | [Architecture Diagrams](docs/architecture/diagrams.md) | [Design Decisions (ADRs)](docs/architecture/design_decisions.md)
 - **[Architectural Module Deep-Dives](docs/modules/tools.md)**:
   - 🛠️ [Tooling Architecture & Tool Factory](docs/modules/tools.md) (ToolFactory, Qdrant tool, Text Extractor, Custom Tool Extension Guide)
