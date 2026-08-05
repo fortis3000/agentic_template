@@ -29,3 +29,5 @@ The documentation is organized into three main sections:
 - **[Docker & Qdrant Operations](guides/docker_and_qdrant.md)**: `docker-compose.yml` multi-container orchestration (App, Qdrant, Arize Phoenix).
 - **[RAG Operations & Document Ingestion](guides/rag_and_ingestion.md)**: End-to-end RAG guide for document parsing, chunking configuration, vector indexing, and search queries.
 - **[Testing, Linting & Quality Control](guides/testing_and_validation.md)**: Matrix of quality tools, running `pytest`, Ruff formatting/linting, pre-commit hooks, and PR validation.
+- **[Mutation Testing Guide](mutation_testing.md)**: `mutmut` setup, target modules, execution command (`make mutate`), TUI browser, and mutant handling.
+

@@ -39,17 +39,20 @@ source_paths = [
     "src/utils/retry.py",
     "src/utils/pr_validator.py",
     "src/tools/text_extractor.py",
+    "src/agents/config.py",
 ]
 # Folders copied to the sandbox workspace so imports resolve correctly
 also_copy = [
     "src/",
     ".github/",
+    "configs/",
 ]
 # Targeted pytest selection to avoid running slow or unrelated tests
 pytest_add_cli_args_test_selection = [
     "tests/test_retry.py",
     "tests/test_pr_validator.py",
     "tests/test_text_extractor.py",
+    "tests/test_phoenix_config.py",
 ]
 # Disables plugins like cov/logfire to speed up test execution
 pytest_add_cli_args = [
