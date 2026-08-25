@@ -3,7 +3,7 @@
 ## Repository goals
 
 - Agentic project template — standardized structure, tooling, and workflows for building AI Agents.
-- Framework-agnostic agent support (e.g. `google-antigravity-sdk`, `pydantic-ai`).
+- Framework-agnostic agent support (e.g. `pydantic-ai`).
 - Keep changes small, reviewable, and consistent with existing style.
 
 ## High-signal repo map

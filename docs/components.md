@@ -59,17 +59,12 @@ This document provides a technical walkthrough of the core components in the Sta
 
 ## 3. Implementation Backends
 
-### Google Antigravity Wrapper (`src/agents/google_antigravity.py`)
-
-- **`AntigravityAgent`**: Envelops the `google-antigravity-sdk`. Spawns a `G_Agent` instance, converts generic inputs to Antigravity's payload types, and executes calls via the SDK's context manager chat interface.
-- **`AntigravityAgentGenerator`**: Leverages YAML configuration and registered tools to build a `LocalAgentConfig` and yield a running agent.
-- **`trace_tool`**: A custom python decorator wrapping agent tools with OpenTelemetry span properties adhering to the OpenInference semantic convention.
-
 ### Pydantic AI Wrapper (`src/agents/pydantic_ai.py`)
 
 - **`PydanticAIAgent`**: Wraps the `pydantic-ai` orchestration framework. Integrates generic input wrappers into `pydantic_ai` model inputs.
 - **`ModelFactory`**: Directs calls to the appropriate provider client wrapper (Google/Gemini, OpenAI, Anthropic, Ollama) and maps corresponding credentials (e.g. `GEMINI_API_KEY`, `OPENAI_API_KEY`).
 - **`PydanticAIAgentGenerator`**: Reads configurations, builds corresponding Pydantic AI agent instances, registers python functions as model tools, and validates execution states.
+- **`trace_tool` (`src/agents/tracing.py`)**: A custom python decorator wrapping agent tools with OpenTelemetry span properties adhering to the OpenInference semantic convention.
 
 ---
 
@@ -118,7 +113,7 @@ The codebase implements a robust, two-tier retry mechanism to handle transient n
 - **Behavior**: Individual tool call failures (e.g. transient 503 errors from Google Sheets API) are intercepted and retried according to the configuration attempts and delay, without aborting or restarting the parent agent execution.
 
 ### 2. Agent-Level Retries (`src/agents/`)
-- **Wrapper**: Main model executions inside both `PydanticAIAgent` and `AntigravityAgent` are protected by a retry loop.
+- **Wrapper**: Main model executions inside `PydanticAIAgent` are protected by a retry loop.
 - **Behavior**:
   - Catches transient errors (e.g. rate limit quota 429, provider service unavailable 503, API connections/timeouts).
   - Registers failures on the active OpenTelemetry span via `span.record_exception(e)` to preserve logging traces.

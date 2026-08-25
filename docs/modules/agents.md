@@ -1,6 +1,6 @@
 # Agent Framework & SDK Abstractions (`src/agents/`)
 
-This document provides architectural and technical specifications for the core Agent Engine, covering `BaseAgent`, framework wrappers (`GoogleAntigravityAgent`, `PydanticAIAgent`), prompt management, embedding generation, and model configuration.
+This document provides architectural and technical specifications for the core Agent Engine, covering `BaseAgent`, framework wrappers (`PydanticAIAgent`), prompt management, embedding generation, tracing, and model configuration.
 
 ---
 
@@ -10,8 +10,8 @@ The Agent engine decouples business application code from specific LLM framework
 
 Key files:
 - [`src/agents/base.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/agents/base.py): Abstract base classes (`BaseAgent`, `BaseAgentGenerator`) and multimodal input models (`TextPart`, `ImagePart`, `FilePart`).
-- [`src/agents/google_antigravity.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/agents/google_antigravity.py): Google Antigravity SDK implementation (`GoogleAntigravityAgent`).
 - [`src/agents/pydantic_ai.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/agents/pydantic_ai.py): Pydantic AI framework integration (`PydanticAIAgent`).
+- [`src/agents/tracing.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/agents/tracing.py): Tool tracing decorator (`trace_tool`).
 - [`src/agents/config.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/agents/config.py): Configuration parser (`AgentYamlConfig`).
 - [`src/agents/embeddings.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/agents/embeddings.py): Embedding model factory (`EmbeddingModelFactory`).
 - [`src/agents/prompt_manager.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/agents/prompt_manager.py): System & user prompt template engine.
@@ -33,9 +33,6 @@ Key files:
 ### 2.3 Pydantic AI Agent Wrapper (`src/agents/pydantic_ai.py`)
 - **Key Features**: Strictly-typed Pydantic response models, native tool calling, OpenTelemetry tracing instrumentation.
 - **Provider Support**: Ollama (`ollama:qwen2.5-coder:7b`), Gemini (`google-gla:gemini-2.5-flash`), OpenAI (`openai:gpt-4o`).
-
-### 2.4 Google Antigravity Agent Wrapper (`src/agents/google_antigravity.py`)
-- **Key Features**: Direct integration with Google Antigravity SDK, native tool function definitions, streaming response support.
 
 ---
 

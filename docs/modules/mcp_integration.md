@@ -27,5 +27,5 @@ Key files:
 ## 3. Tool Discovery & Conversion
 
 1. **Discovery**: `McpServerFactory.fetch_tools_sync(config)` connects to the specified MCP server command and queries available tool definitions.
-2. **Schema Conversion**: Converts MCP tool JSON schemas into Pydantic / Python callable signatures compatible with `PydanticAIAgent` and `AntigravityAgent`.
+2. **Schema Conversion**: Converts MCP tool JSON schemas into Pydantic / Python callable signatures compatible with `PydanticAIAgent`.
 3. **Execution Interception**: Tool calls invoked by the model are forwarded through `session.call_tool(name, arguments)` and returned to the agent context.

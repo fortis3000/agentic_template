@@ -2,14 +2,14 @@ import asyncio
 import os
 import time
 from typing import Any, cast
-from unittest.mock import AsyncMock, patch
 
 import phoenix as px
 import yaml
 from phoenix.otel import register
+from pydantic_ai.models.test import TestModel
 
 from src.agents.config import AgentYamlConfig, PhoenixConfigSchema
-from src.agents.google_antigravity import AntigravityAgent, AntigravityAgentGenerator
+from src.agents.pydantic_ai import PydanticAIAgent, PydanticAIAgentGenerator
 from src.tools.qdrant_db import QdrantVectorDB
 from src.utils.logger import get_logger
 
@@ -38,14 +38,14 @@ def get_weather(location: str) -> str:
     return f"The weather in {location} is sunny and 22°C."
 
 
-async def run_live_demo_run(agent: AntigravityAgent, query: str) -> None:
+async def run_live_demo_run(agent: PydanticAIAgent, query: str) -> None:
     """Runs a live agent session with actual API keys to generate traces."""
     logger.info("Running live agent run...")
     try:
         # First, trigger the weather tool directly to make sure a tool span is generated
-        tool_func = agent.config.tools[0]
-        logger.info("Invoking registered tool...")
-        tool_func(location="Paris")
+        tool_obj = agent.agent._function_toolset.tools.get("get_weather")
+        tool_fn: Any = tool_obj.function if tool_obj else get_weather
+        tool_fn(location="Paris")
 
         # Then run agent call
         response = await agent.call(inputs={"query": query})
@@ -54,24 +54,19 @@ async def run_live_demo_run(agent: AntigravityAgent, query: str) -> None:
         logger.error(f"Error during live agent run: {e}")
 
 
-async def run_mocked_demo_run(agent: AntigravityAgent, query: str) -> None:
+async def run_mocked_demo_run(agent: PydanticAIAgent, query: str) -> None:
     """Runs a mocked agent session to generate traces without making API requests."""
     logger.info("Running with mocked agent and tool calls to generate traces...")
-    # Mock G_Agent context manager and response
-    mock_response = AsyncMock()
-    mock_response.text = AsyncMock(
-        return_value="According to the get_weather tool, the weather in Paris is sunny and 22°C."
+    test_model = TestModel(
+        custom_output_text="According to the get_weather tool, the weather in Paris is sunny and 22°C."
     )
 
-    with patch("src.agents.google_antigravity.G_Agent") as mock_g_agent:
-        mock_instance = AsyncMock()
-        mock_g_agent.return_value.__aenter__.return_value = mock_instance
-        mock_instance.chat.return_value = mock_response
-
+    with agent.agent.override(model=test_model):
         # Call the wrapped tool to generate a tool span
         logger.info("Simulating tool call...")
-        wrapped_tool = agent.config.tools[0]
-        wrapped_tool(location="Paris")
+        tool_obj = agent.agent._function_toolset.tools.get("get_weather")
+        tool_fn: Any = tool_obj.function if tool_obj else get_weather
+        tool_fn(location="Paris")
 
         # Call the agent
         response = await agent.call(inputs={"query": query})
@@ -83,7 +78,7 @@ async def run_demo_agent_run():
     logger.info("Spawning Agentic Session")
 
     # 1. Initialize the agent generator
-    generator = AntigravityAgentGenerator(prompt_base_dir="src/prompts")
+    generator = PydanticAIAgentGenerator(prompt_base_dir="src/prompts")
 
     # 2. Create the agent from configs/agent_config.yaml
     config_path = "configs/agent_config.yaml"
@@ -93,7 +88,7 @@ async def run_demo_agent_run():
 
     # Use a dummy system variable role
     agent = cast(
-        AntigravityAgent,
+        PydanticAIAgent,
         generator.create_agent(
             config_path,
             system_variables={"role": "Weather Assistant"},

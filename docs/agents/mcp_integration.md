@@ -51,7 +51,7 @@ The sequence diagram below details how MCP servers are resolved, wrapped, and ex
 sequenceDiagram
     autonumber
     actor Consumer as Consumer App / Agent
-    participant Gen as Agent Generator (PydanticAI / Antigravity)
+    participant Gen as Agent Generator (PydanticAI)
     participant Factory as McpServerFactory
     participant Cache as McpConnectionManager
     participant Subprocess as MCP Subprocess (Stdio/SSE)

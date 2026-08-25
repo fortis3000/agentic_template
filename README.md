@@ -8,7 +8,7 @@ The codebase documentation is organized into clear architectural specs, subsyste
 - **[Architecture Specs](docs/architecture/system_overview.md)**: [System Overview](docs/architecture/system_overview.md) | [Architecture Diagrams](docs/architecture/diagrams.md) | [Design Decisions (ADRs)](docs/architecture/design_decisions.md)
 - **[Architectural Module Deep-Dives](docs/modules/tools.md)**:
   - 🛠️ [Tooling Architecture & Tool Factory](docs/modules/tools.md) (ToolFactory, Qdrant tool, Text Extractor, Custom Tool Extension Guide)
-  - 🤖 [Agent Framework & SDK Abstractions](docs/modules/agents.md) (BaseAgent, Google Antigravity SDK, Pydantic AI, Agent Extension Guide)
+  - 🤖 [Agent Framework & SDK Abstractions](docs/modules/agents.md) (BaseAgent, Pydantic AI, Agent Extension Guide)
   - 📊 [Arize Phoenix Observability & Evals](docs/modules/evals_observability.md) (OpenTelemetry spans, token metrics, Phoenix UI)
   - 🎨 [User Frontend UI Subsystem](docs/modules/frontend.md) (Svelte 5 + Vite + TypeScript, reactive state controller)
   - ⚡ [API Gateway & Web Server](docs/modules/api.md) (FastAPI main.py, REST endpoints, streaming SSE, file processing)
@@ -39,7 +39,7 @@ The codebase documentation is organized into clear architectural specs, subsyste
 ├── notebooks          <- Jupyter notebooks for experimentation
 ├── references         <- Explanatory materials, reference guides, and manuals
 └── src                <- Main Python source code
-    ├── agents         <- SDK-agnostic agent implementations (Pydantic AI, Antigravity)
+    ├── agents         <- SDK-agnostic agent implementations (Pydantic AI)
     ├── api            <- FastAPI web server, REST endpoints, and SSE streaming
     ├── evals          <- Observability frameworks (Arize Phoenix, OTel tracing)
     ├── ingestion      <- Document chunkers (Fixed, Markdown, Semantic) & Qdrant pipeline
@@ -71,7 +71,6 @@ logger.error("Failed to execute tool", extra={"tool": "qdrant_search"})
 
 The template provides a framework-agnostic agent interface (`BaseAgent`) supporting multiple LLM backends and orchestration frameworks:
 - **Pydantic AI (`PydanticAIAgent`)**: High-performance agent engine with native OpenTelemetry tracing, schema validation, and tool execution.
-- **Google Antigravity SDK (`AntigravityAgent`)**: Direct integration with Google Antigravity SDK.
 - **Local Models (Ollama)**: Out-of-the-box support for local open-weights models (`qwen2.5-coder:7b`).
 - **Model Context Protocol (MCP)**: Dynamically connects agents to third-party stdio and SSE tools.
 

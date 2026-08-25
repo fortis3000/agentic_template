@@ -28,14 +28,14 @@ Adopt **Python 3.13** as the runtime target and **`uv`** as the primary package 
 Accepted
 
 ### Context
-The AI agent ecosystem evolves rapidly. Binding the application tightly to a single agent framework (e.g. LangChain, CrewAI, Pydantic AI, or Google Antigravity SDK) risks framework lock-in.
+The AI agent ecosystem evolves rapidly. Binding the application tightly to a single agent framework (e.g. LangChain, CrewAI, or Pydantic AI) risks framework lock-in.
 
 ### Decision
-Create a unified `BaseAgent` and `BaseAgentGenerator` interface in `src/agents/base.py`. Underneath, framework wrappers (`GoogleAntigravityAgent` in `google_antigravity.py`, `PydanticAIAgent` in `pydantic_ai.py`) implement the uniform API contract.
+Create a unified `BaseAgent` and `BaseAgentGenerator` interface in `src/agents/base.py`. Underneath, framework wrappers (e.g., `PydanticAIAgent` in `pydantic_ai.py`) implement the uniform API contract.
 
 ### Consequences
 - Decouples client/UI applications from specific framework details.
-- Allows switching between Google Antigravity SDK and Pydantic AI dynamically.
+- Allows switching or extending agent backend engines dynamically.
 - Enforces standardized prompt templating via `PromptManager`.
 
 ---
