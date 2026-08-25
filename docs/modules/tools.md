@@ -6,7 +6,7 @@ This document provides technical documentation for the Unified Tooling Subsystem
 
 ## 1. Overview & Unified Architecture
 
-The tooling subsystem is organized into a modular, two-tier architecture unified under `ToolManager`:
+Tools are independent, reusable functional units that can be bound to any agent framework (Pydantic AI, Ollama, OpenAI) or executed standalone. The tooling subsystem is organized into a modular, two-tier architecture unified under `ToolManager`:
 
 ```text
 src/tools/
@@ -32,8 +32,9 @@ src/tools/
 
 `ToolManager` in `src/tools/manager.py` acts as the single point of contact for agent engines (such as `PydanticAIAgentGenerator`) and the API gateway:
 
-- **Async Resolution (`resolve_tools`)**: Discovers external MCP tools and binds local Python tools without blocking the event loop.
+- **Async Resolution (`resolve_tools`)**: Discovers external MCP tools in parallel and binds local Python tools without blocking the event loop.
 - **Sync Resolution (`resolve_tools_sync`)**: Synchronous tool discovery for CLI scripts and worker threads.
+- **Framework-Neutral Tool Descriptors (`McpToolDefinition`)**: Returns standard Python callables for local tools and structured `McpToolDefinition` descriptors for MCP tools, allowing any agent SDK to adapt them to its native tool interface.
 - **Retry & Tracing Integration**: Automatically applies per-tool or global retry configurations (`wrap_tool_with_retry`) and OpenTelemetry span tracing (`trace_tool`).
 - **Connection Cleanup (`close_all`)**: Gracefully closes persistent MCP sessions and background tasks on application shutdown.
 
@@ -94,6 +95,7 @@ Enables agents to interact with external tools running as independent MCP server
 - **`McpConnectionManager` (`manager.py`)**: Maintains persistent client sessions across invocations, avoiding subprocess recreation overhead.
 - **`McpServerFactory` (`client.py`)**: Connects to MCP servers, filters tools based on whitelist/blacklist (`enabled_tools` / `disabled_tools`), and caches tool discovery metadata.
 - **`make_mcp_tool_callable`**: Wraps remote MCP tool calls into asynchronous Python callables with OpenTelemetry tracing and retry support.
+- **`McpToolDefinition`**: Standard dataclass providing tool name, callable, description, and input schema.
 
 ---
 
@@ -106,7 +108,10 @@ Add a new file in `src/tools/local/` (e.g., `src/tools/local/weather_tool.py`):
 
 ```python
 from typing import Callable
-from src.tools.local.base import BaseTool, ToolFactory
+
+# Relative import ensures single registration across `tools` and `src.tools` namespaces (see pyproject.toml:99-106)
+from .base import BaseTool, ToolFactory
+
 
 @ToolFactory.register("weather_tool")
 class WeatherTool(BaseTool):
@@ -139,7 +144,7 @@ Add a test file under `tests/` verifying registration and execution:
 ```python
 import pytest
 from src.tools.local.base import ToolFactory
-from src.tools.local.weather_tool import WeatherTool
+
 
 def test_weather_tool_registration():
     tool_instance = ToolFactory.create("weather_tool", {"default_unit": "celsius"})

@@ -4,15 +4,14 @@ Provides a single entry point for managing, resolving, wrapping, and executing
 both local Python tools and external MCP server integrations.
 """
 
+import asyncio
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, ClassVar, Type
-
-from pydantic_ai.tools import Tool
 
 from src.agents.tracing import trace_tool
 from src.tools.local.base import ToolFactory
 from src.tools.local.vectordb_base import VectorDBFactory
-from src.tools.mcp.client import McpServerFactory, make_mcp_tool_callable
+from src.tools.mcp.client import McpServerFactory, McpToolDefinition, make_mcp_tool_callable
 from src.tools.mcp.manager import McpConnectionManager
 from src.utils.logger import get_logger
 from src.utils.retry import RetryConfig, wrap_tool_with_retry
@@ -64,12 +63,13 @@ class ToolManager:
         retry_config: RetryConfig | None = None,
         tools_registry: dict[str, Callable[..., Any]] | None = None,
         tools_config_path: str | None = None,
+        strict: bool = True,
     ) -> list[Any]:
         """Asynchronously resolve, wrap, and instantiate all local and MCP tools for an agent.
 
-        Discovers MCP tools asynchronously without blocking the event loop.
+        Discovers MCP tools asynchronously in parallel without blocking the event loop.
         """
-        tools_list, resolved_registry, names, servers, settings, global_retry = cls._extract_params(
+        resolved_registry, names, servers, settings, global_retry = cls._extract_params(
             config=config,
             tool_names=tool_names,
             mcp_servers=mcp_servers,
@@ -77,16 +77,20 @@ class ToolManager:
             retry_config=retry_config,
             tools_registry=tools_registry,
             tools_config_path=tools_config_path,
+            strict=strict,
         )
+
+        tools_list: list[Any] = []
 
         # 1. Resolve local tools
         cls._resolve_local_tools(tools_list, names, resolved_registry, settings, global_retry)
 
-        # 2. Resolve MCP tools asynchronously
-        mcp_tools_by_server = {
-            server_name: await cls.mcp_factory.fetch_tools(server_cfg)
-            for server_name, server_cfg in servers.items()
-        }
+        # 2. Resolve MCP tools asynchronously in parallel
+        server_names = list(servers.keys())
+        results = await asyncio.gather(
+            *(cls.mcp_factory.fetch_tools(servers[s_name]) for s_name in server_names)
+        )
+        mcp_tools_by_server = dict(zip(server_names, results, strict=True))
         cls._append_mcp_tools(tools_list, servers, mcp_tools_by_server, settings, global_retry)
 
         return tools_list
@@ -102,12 +106,13 @@ class ToolManager:
         retry_config: RetryConfig | None = None,
         tools_registry: dict[str, Callable[..., Any]] | None = None,
         tools_config_path: str | None = None,
+        strict: bool = True,
     ) -> list[Any]:
         """Synchronously resolve, wrap, and instantiate all local and MCP tools for an agent.
 
         Discovers MCP tools using worker threads. Callers on an event loop should use `resolve_tools`.
         """
-        tools_list, resolved_registry, names, servers, settings, global_retry = cls._extract_params(
+        resolved_registry, names, servers, settings, global_retry = cls._extract_params(
             config=config,
             tool_names=tool_names,
             mcp_servers=mcp_servers,
@@ -115,7 +120,10 @@ class ToolManager:
             retry_config=retry_config,
             tools_registry=tools_registry,
             tools_config_path=tools_config_path,
+            strict=strict,
         )
+
+        tools_list: list[Any] = []
 
         # 1. Resolve local tools
         cls._resolve_local_tools(tools_list, names, resolved_registry, settings, global_retry)
@@ -139,8 +147,8 @@ class ToolManager:
         retry_config: RetryConfig | None,
         tools_registry: dict[str, Callable[..., Any]] | None,
         tools_config_path: str | None,
+        strict: bool = True,
     ) -> tuple[
-        list[Any],
         dict[str, Callable[..., Any]],
         list[str],
         dict[str, Any],
@@ -160,17 +168,24 @@ class ToolManager:
 
         resolved_registry = {**(tools_registry or {})}
         if tools_config_path:
-            resolved_registry.update(cls.tool_factory.load_from_yaml(tools_config_path))
+            resolved_registry.update(
+                cls.tool_factory.load_from_yaml(tools_config_path, strict=strict)
+            )
 
-        tools_list: list[Any] = []
         return (
-            tools_list,
             resolved_registry,
             resolved_names,
             resolved_servers,
             resolved_settings,
             resolved_retry,
         )
+
+    @staticmethod
+    def _tool_retry(settings: dict[str, Any], tool_name: str) -> RetryConfig | None:
+        tool_setting = settings.get(tool_name)
+        if isinstance(tool_setting, dict):
+            return tool_setting.get("retry")
+        return getattr(tool_setting, "retry", None)
 
     @classmethod
     def _resolve_local_tools(
@@ -188,13 +203,7 @@ class ToolManager:
                     f"Tool '{tool_name}' listed in config but not provided in tools_registry."
                 )
 
-            tool_setting = settings.get(tool_name)
-            tool_retry = (
-                getattr(tool_setting, "retry", None)
-                if not isinstance(tool_setting, dict)
-                else tool_setting.get("retry")
-            )
-
+            tool_retry = cls._tool_retry(settings, tool_name)
             wrapped_tool = wrap_tool_with_retry(registry[tool_name], effective_retry, tool_retry)
             tools_list.append(trace_tool(wrapped_tool))
 
@@ -212,13 +221,7 @@ class ToolManager:
             mcp_cfg = servers[mcp_name]
             for tool_info in mcp_tools:
                 tool_name = tool_info["name"]
-
-                tool_setting = settings.get(tool_name)
-                tool_retry = (
-                    getattr(tool_setting, "retry", None)
-                    if not isinstance(tool_setting, dict)
-                    else tool_setting.get("retry")
-                )
+                tool_retry = cls._tool_retry(settings, tool_name)
 
                 # Create wrapper callable and wrap it with retry
                 mcp_callable = make_mcp_tool_callable(
@@ -231,15 +234,15 @@ class ToolManager:
                 # Trace tool
                 traced_mcp_callable = trace_tool(wrapped_mcp_callable)
 
-                # Wrap in Pydantic AI Tool using schema
+                # Framework-neutral tool descriptor
                 schema = tool_info.get("input_schema") or {}
-                pydantic_tool = Tool.from_schema(
-                    function=traced_mcp_callable,
+                mcp_tool_def = McpToolDefinition(
                     name=tool_name,
+                    callable=traced_mcp_callable,
                     description=tool_info.get("description"),
-                    json_schema=schema,
+                    input_schema=schema,
                 )
-                tools_list.append(pydantic_tool)
+                tools_list.append(mcp_tool_def)
 
     @classmethod
     async def close_all(cls) -> None:

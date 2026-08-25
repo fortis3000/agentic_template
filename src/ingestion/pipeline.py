@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from src.agents.embeddings import EmbeddingModelConfigSchema, EmbeddingModelFactory
 from src.ingestion.helper import ingest_document
-from src.tools.vectordb_base import VectorDBFactory
+from src.tools.local.vectordb_base import VectorDBFactory
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

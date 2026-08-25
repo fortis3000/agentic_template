@@ -2,8 +2,10 @@ import logging
 from datetime import datetime
 from typing import Any, Callable, Dict, List
 
-from src.tools.local.base import BaseTool, ToolFactory
 from src.utils.google_sheets import GoogleSheetsClient, VocabEntry
+
+# Relative: this module registers itself below — see the note in src/tools/local/qdrant_db.py.
+from ..base import BaseTool, ToolFactory
 
 logger = logging.getLogger(__name__)
 

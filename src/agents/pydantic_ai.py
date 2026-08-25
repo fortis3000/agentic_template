@@ -18,11 +18,13 @@ from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.google import GoogleProvider
 from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.tools import Tool
 
 from src.agents.base import AgentInputPart, BaseAgent, BaseAgentGenerator, ImagePart, TextPart
 from src.agents.config import AgentConfigSchema, AgentYamlConfig
 from src.agents.prompt_manager import PromptManager
 from src.tools.manager import ToolManager
+from src.tools.mcp.client import McpToolDefinition
 from src.utils.logger import get_logger
 from src.utils.retry import RetryConfig, is_retryable_exception, retry_async
 
@@ -378,11 +380,25 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
                 api_key=kwargs["api_key"],
             )
 
+        pydantic_tools: list[Any] = []
+        for tool in tools:
+            if isinstance(tool, McpToolDefinition):
+                pydantic_tools.append(
+                    Tool.from_schema(
+                        function=tool.callable,
+                        name=tool.name,
+                        description=tool.description,
+                        json_schema=tool.input_schema,
+                    )
+                )
+            else:
+                pydantic_tools.append(tool)
+
         # Build Pydantic AI Agent
         pa_agent = PA_Agent(
             model=model_instance,
             system_prompt=system_prompt if system_prompt else (),
-            tools=tools,
+            tools=pydantic_tools,
         )
 
         default_user_prompt_source = agent_data.user_prompt_path or agent_data.user_prompt

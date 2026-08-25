@@ -1,14 +1,14 @@
 """Local tools package providing built-in tool implementations and factories."""
 
-from src.tools.local.base import BaseTool, ToolConfigType, ToolFactory
-from src.tools.local.google_sheet import (
+from .base import BaseTool, ToolConfigType, ToolFactory
+from .google_sheet import (
     GoogleSheetsAddVocabEntryTool,
     GoogleSheetsReadTool,
     GoogleSheetsWriteTool,
 )
-from src.tools.local.google_sheet import write_german_words as google_sheet_tool  # noqa: F401
-from src.tools.local.qdrant_db import QdrantVectorDB, generate_sparse_vector
-from src.tools.local.text_extractor import (
+from .google_sheet import write_german_words as google_sheet_tool  # noqa: F401
+from .qdrant_db import QdrantVectorDB, generate_sparse_vector
+from .text_extractor import (
     MIME_HTML,
     MIME_MARKDOWN,
     MIME_PDF,
@@ -16,8 +16,8 @@ from src.tools.local.text_extractor import (
     SUPPORTED_MIME_TYPES,
     extract_text,
 )
-from src.tools.local.vectordb_base import BaseVectorDB, VectorDBFactory
-from src.tools.local.vectordb_search import VectorDBSearchTool
+from .vectordb_base import BaseVectorDB, VectorDBFactory
+from .vectordb_search import VectorDBSearchTool
 
 __all__ = [
     "BaseTool",

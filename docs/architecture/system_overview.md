@@ -61,12 +61,16 @@ The primary goal of this project template is to provide a standardized, framewor
 - **Prompt Manager (`prompt_manager.py`)**: Centralized system prompt and user template renderer supporting variable substitution.
 - **Embeddings Subsystem (`embeddings.py`)**: Multi-provider embedding generator supporting FastEmbed, sentence-transformers, Google, and Ollama embeddings.
 
-### 3.2 Tooling Engine & Tool Factory (`src/tools/`)
-- **Tool Standard (`base.py`)**: Abstract tool interface enforcing function metadata, argument schemas, and synchronous/asynchronous execution contracts.
-- **Qdrant DB Tool (`qdrant_db.py`)**: In-memory and server-mode vector search tool for retrieving relevant document chunks.
-- **Text Extractor (`text_extractor.py`)**: Document parser supporting text extraction from PDF, TXT, Markdown, and HTML files.
-- **Vector Search (`vectordb_search.py`)**: Standalone semantic search tool interacting with vector stores.
-- **Google Sheets (`google_sheet/`)**: Integrations for external tabular read/write operations.
+### 3.2 Tooling Engine & Tool Manager (`src/tools/`)
+- **Tool Manager (`manager.py`)**: Central orchestrator (`ToolManager`) unifying discovery, instantiation, retry wrapping, and OpenTelemetry tracing across local Python tools and external MCP servers.
+- **Local Tools Package (`local/`)**:
+  - **Tool Standard (`local/base.py`)**: Abstract tool interface (`BaseTool`), configuration type, and registry factory (`ToolFactory`).
+  - **Qdrant DB Tool (`local/qdrant_db.py`)**: In-memory and server-mode vector search tool for retrieving relevant document chunks.
+  - **Text Extractor (`local/text_extractor.py`)**: Document parser supporting text extraction from PDF, TXT, Markdown, and HTML files.
+  - **Vector Search (`local/vectordb_search.py`)**: Standalone semantic search tool interacting with vector stores.
+  - **Google Sheets (`local/google_sheet/`)**: Integrations for external tabular read/write operations.
+- **MCP Subsystem (`mcp/`)**:
+  - **Stdio & SSE Client (`mcp/client.py`, `mcp/manager.py`, `mcp/server.py`)**: Connects agents to external Model Context Protocol servers to dynamically discover and execute third-party tools with persistent connection pooling.
 
 ### 3.3 API Gateway (`src/api/`)
 - Built on **FastAPI**, serving:
@@ -82,16 +86,13 @@ The primary goal of this project template is to provide a standardized, framewor
 ### 3.5 Observability & Evals (`src/evals/`)
 - **Arize Phoenix Service (`phoenix_service.py`)**: Launches or connects to Arize Phoenix instance over OTLP. Automatically records agent trace spans, tool calls, execution latencies, and token counts.
 
-### 3.6 MCP Integration (`src/mcp_integration/`)
-- **Stdio & SSE Client (`client.py`, `manager.py`, `server.py`)**: Connects agents to external Model Context Protocol servers to dynamically discover and execute third-party tools.
-
-### 3.7 User Frontend (`frontend/`)
-- React + Vite + TypeScript web interface providing chat UI, live tool execution panels, file upload preview, and direct links to Arize Phoenix traces.
+### 3.6 User Frontend (`frontend/`)
+- Svelte 5 / React web interface providing chat UI, live tool execution panels, file upload preview, and direct links to Arize Phoenix traces.
 
 ---
 
 ## 4. Architectural Principles for Maintenance & Extension
 
-1. **Adding New Tools**: Extend `BaseTool` in `src/tools/base.py`, register the tool in the Tool Factory, and add corresponding test coverage under `tests/test_tools/`.
+1. **Adding New Tools**: Extend `BaseTool` in `src/tools/local/base.py`, register the tool in the Tool Factory, and add corresponding test coverage under `tests/test_tools/`.
 2. **Adding New Agents**: Extend `BaseAgent` in `src/agents/base.py`, implement prompt rendering and tool dispatching, and add tests in `tests/test_agents/`.
-3. **Observability**: Ensure all async tool executions wrap calls in `traced_tool` or active OpenTelemetry spans so Arize Phoenix visualizes execution trees seamlessly.
+3. **Observability**: Ensure all async tool executions wrap calls in `trace_tool` or active OpenTelemetry spans so Arize Phoenix visualizes execution trees seamlessly.

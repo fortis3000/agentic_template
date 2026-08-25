@@ -23,8 +23,12 @@ from qdrant_client.models import (
     VectorParams,
 )
 
-from src.tools.local.vectordb_base import BaseVectorDB, VectorDBFactory
 from src.utils.logger import get_logger
+
+# Relative: this module registers itself below, and `src` is on sys.path (see
+# [tool.pytest.ini_options]), so an absolute import would make both the `tools.*` and
+# `src.tools.*` copies register into one shared registry, the second overwriting the first.
+from .vectordb_base import BaseVectorDB, VectorDBFactory
 
 logger = get_logger(__name__)
 

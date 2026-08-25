@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from mcp import ClientSession
@@ -14,6 +15,16 @@ if TYPE_CHECKING:
     pass
 
 logger = get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class McpToolDefinition:
+    """Framework-neutral descriptor for an external MCP tool definition."""
+
+    name: str
+    callable: Callable[..., Any]
+    description: str | None = None
+    input_schema: dict[str, Any] = field(default_factory=dict)
 
 
 def make_mcp_tool_callable(

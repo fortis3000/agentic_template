@@ -14,7 +14,7 @@ The documentation is organized into three main sections:
 - **[Architectural Decision Records (ADRs)](architecture/design_decisions.md)**: ADRs on Python 3.13 + `uv`, framework-agnostic agents, Tool Factory, Arize Phoenix telemetry, and PR quality gates.
 
 ### 🧩 Subsystem & Module Deep-Dives (`docs/modules/`)
-- **[Tooling Architecture & Tool Factory](modules/tools.md)**: `BaseTool`, `ToolFactory`, Qdrant DB tool, Text Extractor tool, Vector search tool, Google Sheets tool, and Step-by-Step Custom Tool Extension Guide.
+- **[Tooling Architecture & Tool Manager](modules/tools.md)**: `ToolManager`, `ToolFactory`, `src/tools/local/`, `src/tools/mcp/`, built-in tools (Qdrant, Text Extractor, Sheets), and Custom Tool Extension Guide.
 - **[Agent Framework & SDK Abstractions](modules/agents.md)**: `BaseAgent`, `BaseAgentGenerator`, Pydantic AI wrapper, prompt manager, tracing, embeddings factory, and Agent Extension Guide.
 - **[Arize Phoenix Observability & Evals](modules/evals_observability.md)**: `phoenix_service.py`, OpenTelemetry spans, trace hierarchy, token metrics, and Phoenix dashboard setup.
 - **[User Frontend UI Subsystem](modules/frontend.md)**: Svelte 5 + TypeScript + Vite + Tailwind UI, reactive `$state` controller (`agent.svelte.ts`), component taxonomy, and API hooks.

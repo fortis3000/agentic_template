@@ -1,7 +1,10 @@
 """Text extraction utilities for uploaded files.
 
-Re-exports text extraction utilities from src.tools.local.text_extractor.
+.. deprecated::
+    Use :mod:`src.tools.local.text_extractor` instead.
 """
+
+import warnings
 
 from src.tools.local.text_extractor import (
     MIME_HTML,
@@ -10,6 +13,12 @@ from src.tools.local.text_extractor import (
     MIME_TEXT,
     SUPPORTED_MIME_TYPES,
     extract_text,
+)
+
+warnings.warn(
+    "src.tools.text_extractor is deprecated; use src.tools.local.text_extractor instead.",
+    DeprecationWarning,
+    stacklevel=2,
 )
 
 __all__ = [

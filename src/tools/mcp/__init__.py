@@ -1,6 +1,6 @@
 """Model Context Protocol (MCP) integration package providing client session management and server configuration helpers."""
 
-from src.tools.mcp.client import McpServerFactory, make_mcp_tool_callable
+from src.tools.mcp.client import McpServerFactory, McpToolDefinition, make_mcp_tool_callable
 from src.tools.mcp.manager import (
     SHUTDOWN_TIMEOUT,
     McpConnectionManager,
@@ -14,6 +14,7 @@ from src.tools.mcp.server import (
 __all__ = [
     "McpConnectionManager",
     "McpServerFactory",
+    "McpToolDefinition",
     "SHUTDOWN_TIMEOUT",
     "build_session_key",
     "make_mcp_tool_callable",

@@ -25,8 +25,8 @@ from pydantic.types import Base64Bytes
 from src.agents.base import AgentInputPart, ImagePart, TextPart
 from src.agents.config import AgentYamlConfig, FileConstraints, ImageConstraints
 from src.agents.pydantic_ai import PydanticAIAgentGenerator
+from src.tools.local.text_extractor import extract_text
 from src.tools.manager import ToolManager
-from src.tools.text_extractor import extract_text
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

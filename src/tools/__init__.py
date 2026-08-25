@@ -19,7 +19,11 @@ from src.tools.local.text_extractor import (
 from src.tools.local.vectordb_base import BaseVectorDB, VectorDBFactory
 from src.tools.local.vectordb_search import VectorDBSearchTool
 from src.tools.manager import ToolManager
-from src.tools.mcp.client import McpServerFactory, make_mcp_tool_callable
+from src.tools.mcp.client import (
+    McpServerFactory,
+    McpToolDefinition,
+    make_mcp_tool_callable,
+)
 from src.tools.mcp.manager import SHUTDOWN_TIMEOUT, McpConnectionManager, build_session_key
 from src.tools.mcp.server import parse_http_server_kwargs, parse_stdio_server_parameters
 
@@ -35,6 +39,7 @@ __all__ = [
     "MIME_TEXT",
     "McpConnectionManager",
     "McpServerFactory",
+    "McpToolDefinition",
     "QdrantVectorDB",
     "SHUTDOWN_TIMEOUT",
     "SUPPORTED_MIME_TYPES",
