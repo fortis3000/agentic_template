@@ -3,8 +3,7 @@ from typing import cast
 
 from dotenv import load_dotenv
 
-# pyrefly: ignore [missing-import]
-from src.agents import AntigravityAgent, AntigravityAgentGenerator
+from src.agents import PydanticAIAgent, PydanticAIAgentGenerator
 from src.utils.logger import get_logger
 
 load_dotenv()
@@ -13,11 +12,11 @@ logger = get_logger(__name__)
 
 async def main():
     # 1. Initialize the agent generator
-    generator = AntigravityAgentGenerator(prompt_base_dir="src/prompts")
+    generator = PydanticAIAgentGenerator(prompt_base_dir="src/prompts")
 
     # 2. Create the agent from YAML config, supplying system prompt variables dynamically
     agent = cast(
-        AntigravityAgent,
+        PydanticAIAgent,
         generator.create_agent(
             "configs/agent_config.yaml", system_variables={"role": "Senior AI Architect"}
         ),

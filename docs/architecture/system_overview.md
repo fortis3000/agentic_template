@@ -8,7 +8,7 @@ This document presents the high-level architecture, design principles, and compo
 
 The primary goal of this project template is to provide a standardized, framework-agnostic, and production-ready foundation for building autonomous AI agents and Multi-Agent workflows. Key principles include:
 
-1. **Framework Agnosticism**: Standardized abstraction interfaces (`BaseAgent`, `BaseTool`, `EmbeddingClient`) allow agents to be powered by different engines (Google Antigravity SDK, Pydantic AI, Ollama, OpenAI) without refactoring downstream application code.
+1. **Framework Agnosticism**: Standardized abstraction interfaces (`BaseAgent`, `BaseTool`, `EmbeddingClient`) allow agents to be powered by different engines (Pydantic AI, Ollama, OpenAI) without refactoring downstream application code.
 2. **Deep Module Design**: Components are structured with tight encapsulation and shallow interfaces, concealing complex internal state while exposing simple, intuitive API contracts.
 3. **End-to-End Observability**: Built-in OpenTelemetry instrumentation routes execution traces, model calls, token counts, and tool spans to Arize Phoenix out-of-the-box.
 4. **Production-Grade Quality Gates**: Enforces local development sandboxing, type-checking, automated linting via Ruff, and PR template validation via pre-commit git hooks.
@@ -32,9 +32,9 @@ The primary goal of this project template is to provide a standardized, framewor
 ┌──────────────────────────────────────▼──────────────────────────────────────┐
 │                           Agent Engine Layer                                │
 │       PromptManager  |  Config Loader  |  BaseAgent Specification           │
-│    ┌───────────────────────────┬─────────────────────────────────────┐      │
-│    │ GoogleAntigravityAgent    │  PydanticAIAgent (OTel Traced)      │      │
-│    └───────────────────────────┴─────────────────────────────────────┘      │
+│    ┌─────────────────────────────────────────────────────────────────┐      │
+│    │                  PydanticAIAgent (OTel Traced)                  │      │
+│    └─────────────────────────────────────────────────────────────────┘      │
 └──────────────────┬───────────────────────────────────────┬──────────────────┘
                    │                                       │
 ┌──────────────────▼───────────────────┐ ┌─────────────────▼──────────────────┐
@@ -56,8 +56,8 @@ The primary goal of this project template is to provide a standardized, framewor
 
 ### 3.1 Agents Engine (`src/agents/`)
 - **Base Interface (`base.py`)**: Abstract base class enforcing consistent `run()`, `stream()`, and prompt rendering behaviors.
-- **Google Antigravity SDK (`google_antigravity.py`)**: Integration with Google Antigravity SDK for autonomous tool use and streaming.
 - **Pydantic AI (`pydantic_ai.py`)**: Integration with Pydantic AI framework providing strict response schemas, tool calling, and OpenTelemetry trace hooks.
+- **Tracing Module (`tracing.py`)**: Tool OpenTelemetry span instrumentation (`trace_tool`).
 - **Prompt Manager (`prompt_manager.py`)**: Centralized system prompt and user template renderer supporting variable substitution.
 - **Embeddings Subsystem (`embeddings.py`)**: Multi-provider embedding generator supporting FastEmbed, sentence-transformers, Google, and Ollama embeddings.
 

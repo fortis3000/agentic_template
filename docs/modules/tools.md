@@ -6,7 +6,7 @@ This document provides explicit documentation for the Tooling Subsystem, coverin
 
 ## 1. Overview & Tooling Architecture
 
-The tool engine is designed around a **Factory Pattern** and **Interface Segregation**. Tools are independent, reusable functional units that can be bound to any agent framework (Pydantic AI, Google Antigravity SDK, Ollama).
+The tool engine is designed around a **Factory Pattern** and **Interface Segregation**. Tools are independent, reusable functional units that can be bound to any agent framework (Pydantic AI, Ollama, OpenAI).
 
 Key files:
 - [`src/tools/base.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/tools/base.py): Base class `BaseTool` and `ToolFactory` registry.

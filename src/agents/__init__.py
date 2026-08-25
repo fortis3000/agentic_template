@@ -7,9 +7,9 @@ from src.agents.base import (
     TextPart,
     ToolConfig,
 )
-from src.agents.google_antigravity import AntigravityAgent, AntigravityAgentGenerator
 from src.agents.prompt_manager import PromptManager
 from src.agents.pydantic_ai import PydanticAIAgent, PydanticAIAgentGenerator
+from src.agents.tracing import trace_tool
 
 __all__ = [
     "AgentInputPart",
@@ -19,9 +19,8 @@ __all__ = [
     "McpServerConfig",
     "TextPart",
     "ToolConfig",
-    "AntigravityAgent",
-    "AntigravityAgentGenerator",
     "PydanticAIAgent",
     "PydanticAIAgentGenerator",
     "PromptManager",
+    "trace_tool",
 ]

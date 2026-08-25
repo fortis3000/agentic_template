@@ -52,7 +52,7 @@ tools:
 
 ## Agent Integration
 
-You can load all tools defined in the YAML file and pass them as a registry to the `AntigravityAgentGenerator` (or use them in any agent):
+You can load all tools defined in the YAML file and pass them as a registry to the `PydanticAIAgentGenerator` (or use them in any agent):
 
 ```python
 from src.tools.base import ToolFactory

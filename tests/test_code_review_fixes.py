@@ -1,14 +1,9 @@
-import json
-from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from google.antigravity.connections.local.local_connection import callable_to_tool_proto
-from google.antigravity.tools.tool_runner import ToolWithSchema
 from pydantic import ValidationError
 
 from src.agents.config import EmbeddingModelConfigSchema, McpServerConfigSchema
-from src.agents.google_antigravity import AntigravityAgent, AntigravityAgentGenerator
 from src.mcp_integration import McpServerFactory
 from src.tools.qdrant_db import QdrantVectorDB, generate_sparse_vector
 from src.tools.vectordb_search import VectorDBSearchTool
@@ -92,56 +87,6 @@ def test_fetch_tools_sync_non_blocking():
         tools = McpServerFactory.fetch_tools_sync(config)
         assert len(tools) == 1
         assert tools[0]["name"] == "echo_tool"
-
-
-ANTIGRAVITY_MCP_CONFIG = """
-agent:
-  name: "test_agent"
-  model: "gemini-3.5-flash"
-  system_prompt: "System prompt"
-  mcp_servers:
-    filesystem:
-      type: "stdio"
-      command: "npx"
-      args: ["-y", "@modelcontextprotocol/server-filesystem"]
-"""
-
-READ_FILE_SCHEMA = {
-    "type": "object",
-    "properties": {"path": {"type": "string", "description": "Absolute path to read"}},
-    "required": ["path"],
-}
-
-
-def test_antigravity_mcp_tool_advertises_its_parameters(tmp_path):
-    """Antigravity MCP tools must carry the MCP input schema, not the (**kwargs) signature."""
-    config_file = tmp_path / "agent_config.yaml"
-    config_file.write_text(ANTIGRAVITY_MCP_CONFIG, encoding="utf-8")
-
-    generator = AntigravityAgentGenerator(prompt_base_dir=tmp_path)
-    with patch("src.mcp_integration.client.McpServerFactory.fetch_tools_sync") as mock_fetch:
-        mock_fetch.return_value = [
-            {
-                "name": "read_file",
-                "description": "Read a file from disk",
-                "input_schema": READ_FILE_SCHEMA,
-            }
-        ]
-        agent = cast(AntigravityAgent, generator.create_agent(str(config_file)))
-
-    tools = agent.config.tools
-    assert tools is not None
-    mcp_tool = tools[0]
-    assert isinstance(mcp_tool, ToolWithSchema)
-    assert mcp_tool.input_schema == READ_FILE_SCHEMA
-    assert mcp_tool.__name__ == "read_file"
-    assert mcp_tool.__doc__ == "Read a file from disk"
-
-    # The declaration actually sent to the model must expose the parameters.
-    proto = callable_to_tool_proto(mcp_tool)
-    assert proto.name == "read_file"
-    assert proto.description == "Read a file from disk"
-    assert json.loads(proto.parameters_json_schema)["properties"]["path"]["type"] == "string"
 
 
 @pytest.mark.asyncio

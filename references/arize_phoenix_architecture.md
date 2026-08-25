@@ -11,7 +11,7 @@ To trace agent executions and tool calls, the framework relies on three distinct
 ```mermaid
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                           Agent Application                             │
-│  (google-antigravity SDK, custom tools, agent loops)                    │
+│  (Pydantic AI agent, custom tools, agent loops)                         │
 └────────────────────────────────────┬────────────────────────────────────┘
                                      │
                                      ▼ (OpenTelemetry API)

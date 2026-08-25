@@ -22,9 +22,7 @@ graph TD
     end
 
     subgraph Layer3["Layer 3: Agent Backends"]
-        F["AntigravityAgent (Google Wrapper)"]
         G["PydanticAIAgent (Pydantic AI Wrapper)"]
-        H["google-antigravity-sdk"]
         I["pydantic-ai"]
     end
 
@@ -44,14 +42,10 @@ graph TD
     B --> D
     D --> C
     E --> C
-    C --> F
     C --> G
-    F --> H
     G --> I
-    F -.->|OTel Trace Spans| J
     G -.->|OTel Trace Spans| J
     J --> K
-    L --> F
     L --> G
     M --> L
     N --> L
@@ -69,8 +63,8 @@ sequenceDiagram
     actor User as Consumer App
     participant Gen as BaseAgentGenerator
     participant PM as PromptManager
-    participant Wrapper as Agent Wrapper (Antigravity/PydanticAI)
-    participant SDK as Underlying SDK (Antigravity/PydanticAI)
+    participant Wrapper as Agent Wrapper (PydanticAIAgent)
+    participant SDK as Underlying SDK (PydanticAI)
     participant OTel as OpenTelemetry Tracing
     participant Phoenix as Arize Phoenix Dashboard
 
@@ -172,7 +166,7 @@ graph TD
     end
 
     subgraph AgentEngine["Agent Engine"]
-        Agent["PydanticAIAgent / AntigravityAgent"]
+        Agent["PydanticAIAgent"]
         Tools["Registered Python Tools"]
     end
 

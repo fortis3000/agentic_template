@@ -22,8 +22,8 @@ from pydantic_ai.tools import Tool
 
 from src.agents.base import AgentInputPart, BaseAgent, BaseAgentGenerator, ImagePart, TextPart
 from src.agents.config import AgentConfigSchema, AgentYamlConfig
-from src.agents.google_antigravity import trace_tool
 from src.agents.prompt_manager import PromptManager
+from src.agents.tracing import trace_tool
 from src.mcp_integration.client import McpServerFactory, make_mcp_tool_callable
 from src.tools.base import ToolFactory
 from src.utils.logger import get_logger

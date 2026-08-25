@@ -15,7 +15,7 @@ The documentation is organized into three main sections:
 
 ### 🧩 Subsystem & Module Deep-Dives (`docs/modules/`)
 - **[Tooling Architecture & Tool Factory](modules/tools.md)**: `BaseTool`, `ToolFactory`, Qdrant DB tool, Text Extractor tool, Vector search tool, Google Sheets tool, and Step-by-Step Custom Tool Extension Guide.
-- **[Agent Framework & SDK Abstractions](modules/agents.md)**: `BaseAgent`, `BaseAgentGenerator`, Google Antigravity SDK wrapper, Pydantic AI wrapper, prompt manager, embeddings factory, and Agent Extension Guide.
+- **[Agent Framework & SDK Abstractions](modules/agents.md)**: `BaseAgent`, `BaseAgentGenerator`, Pydantic AI wrapper, prompt manager, tracing, embeddings factory, and Agent Extension Guide.
 - **[Arize Phoenix Observability & Evals](modules/evals_observability.md)**: `phoenix_service.py`, OpenTelemetry spans, trace hierarchy, token metrics, and Phoenix dashboard setup.
 - **[User Frontend UI Subsystem](modules/frontend.md)**: Svelte 5 + TypeScript + Vite + Tailwind UI, reactive `$state` controller (`agent.svelte.ts`), component taxonomy, and API hooks.
 - **[API Gateway & Web Server](modules/api.md)**: FastAPI main server, CORS, endpoints (`/api/chat`, `/api/upload/image`, `/api/upload/document`, `/health`), file validation & image resizing.
