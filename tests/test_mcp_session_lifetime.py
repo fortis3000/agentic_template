@@ -12,8 +12,8 @@ import pytest
 
 from src.agents.config import McpServerConfigSchema
 from src.agents.pydantic_ai import PydanticAIAgentGenerator
-from src.mcp_integration.client import McpServerFactory
-from src.mcp_integration.manager import McpConnectionManager
+from src.tools.mcp.client import McpServerFactory
+from src.tools.mcp.manager import McpConnectionManager
 
 AGENT_CONFIG = """
 agent:
@@ -79,8 +79,8 @@ async def test_session_closed_from_different_task_than_it_was_opened_in(mcp_conf
     transport = _TransportRecorder()
 
     with (
-        patch("src.mcp_integration.manager.stdio_client", transport.open),
-        patch("src.mcp_integration.manager.ClientSession", _fake_client_session),
+        patch("src.tools.mcp.manager.stdio_client", transport.open),
+        patch("src.tools.mcp.manager.ClientSession", _fake_client_session),
     ):
         # Open the connection from a short-lived "request" task, which then exits — mirroring
         # run_agent_in_background invoking an MCP tool.
@@ -107,8 +107,8 @@ async def test_session_is_reused_across_calls(mcp_config):
     transport = _TransportRecorder()
 
     with (
-        patch("src.mcp_integration.manager.stdio_client", transport.open),
-        patch("src.mcp_integration.manager.ClientSession", _fake_client_session),
+        patch("src.tools.mcp.manager.stdio_client", transport.open),
+        patch("src.tools.mcp.manager.ClientSession", _fake_client_session),
     ):
         first = await McpConnectionManager.get_session(mcp_config)
         second = await McpConnectionManager.get_session(mcp_config)
@@ -127,7 +127,7 @@ async def test_failed_connection_is_not_cached(mcp_config):
         raise RuntimeError("server failed to start")
         yield  # pragma: no cover
 
-    with patch("src.mcp_integration.manager.stdio_client", failing_transport):
+    with patch("src.tools.mcp.manager.stdio_client", failing_transport):
         with pytest.raises(RuntimeError, match="server failed to start"):
             await McpConnectionManager.get_session(mcp_config)
 
@@ -179,8 +179,8 @@ async def test_fetch_tools_caches_discovery_per_server(mcp_config):
     transport = _TransportRecorder()
 
     with (
-        patch("src.mcp_integration.client.stdio_client", transport.open),
-        patch("src.mcp_integration.client.ClientSession", _fake_client_session),
+        patch("src.tools.mcp.client.stdio_client", transport.open),
+        patch("src.tools.mcp.client.ClientSession", _fake_client_session),
         patch.object(McpServerFactory, "_filter_and_parse_tools", return_value=tools),
     ):
         first = await McpServerFactory.fetch_tools(mcp_config)

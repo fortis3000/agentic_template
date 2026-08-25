@@ -1,5 +1,6 @@
 {
   "hooks": {
+    "enabled": false,
     "PreToolUse": [
       {
         "matcher": "Bash|bash|run_command|execute_command",

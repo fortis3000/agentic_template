@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.tools.google_sheet.write_german_words import (
+from src.tools.local.google_sheet.write_german_words import (
     GoogleSheetsAddVocabEntryTool,
     GoogleSheetsReadTool,
     GoogleSheetsWriteTool,
@@ -12,7 +12,7 @@ from src.tools.google_sheet.write_german_words import (
 EXPECTED_CALLS = 2
 
 
-@patch("src.tools.google_sheet.write_german_words.GoogleSheetsClient")
+@patch("src.tools.local.google_sheet.write_german_words.GoogleSheetsClient")
 def test_google_sheet_read_tool(mock_client_class):
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
@@ -27,7 +27,7 @@ def test_google_sheet_read_tool(mock_client_class):
     mock_client.read_range.assert_called_once_with("test_id", "Sheet1!A1:B2")
 
 
-@patch("src.tools.google_sheet.write_german_words.GoogleSheetsClient")
+@patch("src.tools.local.google_sheet.write_german_words.GoogleSheetsClient")
 def test_google_sheet_write_tool_success(mock_client_class):
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
@@ -53,7 +53,7 @@ def test_google_sheet_write_tool_success(mock_client_class):
     )
 
 
-@patch("src.tools.google_sheet.write_german_words.GoogleSheetsClient")
+@patch("src.tools.local.google_sheet.write_german_words.GoogleSheetsClient")
 def test_google_sheet_write_tool_dimension_mismatch(mock_client_class):
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
@@ -75,7 +75,7 @@ def test_google_sheet_write_tool_dimension_mismatch(mock_client_class):
     )
 
 
-@patch("src.tools.google_sheet.write_german_words.GoogleSheetsClient")
+@patch("src.tools.local.google_sheet.write_german_words.GoogleSheetsClient")
 def test_google_sheet_add_vocab_entry_tool_success(mock_client_class):
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client
@@ -116,7 +116,7 @@ def test_google_sheet_add_vocab_entry_tool_success(mock_client_class):
     mock_client.write_range.assert_called_once_with("test_id", "A3:K3", [expected_row])
 
 
-@patch("src.tools.google_sheet.write_german_words.GoogleSheetsClient")
+@patch("src.tools.local.google_sheet.write_german_words.GoogleSheetsClient")
 def test_google_sheet_add_vocab_entry_tool_verification_failure(mock_client_class):
     mock_client = MagicMock()
     mock_client_class.return_value = mock_client

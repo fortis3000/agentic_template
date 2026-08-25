@@ -93,3 +93,29 @@ Maintaining high code quality, preventing security leaks (tokens/secrets), and k
 - Consistent commit log history.
 - Zero unchecked lint or type errors committed to master.
 - PRs contain structured summaries, verification steps, and architectural discussion notes.
+
+---
+
+## ADR 6: Unified Tool and MCP Management Architecture
+
+### Status
+Accepted
+
+### Context
+Originally, tool implementations and MCP (Model Context Protocol) server integrations were split across separate top-level modules (`src/tools/` and `src/mcp_integration/`), and agent factories manually coordinated tool lookup, MCP discovery, retry wrapping, tracing, and session lifecycle cleanup. This created architectural fragmentation, made tool discovery error-prone across sync and async contexts, and complicated testing and extensibility.
+
+### Decision
+1. Unify all tool and MCP management under the `src/tools/` package:
+   - `src/tools/local/`: Local Python tool implementations (`BaseTool`, `ToolFactory`, vector databases, text extractors, Google Sheets).
+   - `src/tools/mcp/`: External Model Context Protocol server integrations (`McpServerFactory`, `McpConnectionManager`, server parameter parsers).
+   - `src/tools/manager.py`: Central `ToolManager` facade orchestrating both local tool resolution and external MCP discovery, retry wrapping, tracing, and session cleanup (`close_all()`).
+2. Provide backwards compatibility in `src/mcp_integration/` and top-level `src/tools/` by re-exporting symbols and raising `DeprecationWarning` where appropriate.
+3. Update agent generators (`PydanticAIAgentGenerator`) and API lifecycle handlers (`src/api/main.py`) to delegate tool resolution and cleanup directly to `ToolManager`.
+
+### Consequences
+- **Single Point of Control**: Agent engines only need to interact with `ToolManager` to resolve all tools (local and remote MCP).
+- **Separation of Concerns**: Clear structural separation between in-process `local/` tools and subprocess/network `mcp/` transports.
+- **Consistent Telemetry & Retries**: OpenTelemetry span wrapping and retry configurations are applied uniformly across both local tools and MCP tools.
+- **Clean Lifecycle Management**: `ToolManager.close_all()` provides deterministic shutdown of persistent MCP server sessions and background tasks.
+- **Backwards Compatible**: Existing imports from `src.mcp_integration` and `src.tools` continue functioning seamlessly.
+

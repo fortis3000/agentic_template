@@ -1,9 +1,6 @@
-"""Google Sheet tools.
+"""Google Sheet tools package."""
 
-Re-exports Google Sheet tools from src.tools.local.google_sheet.write_german_words.
-"""
-
-from src.tools.local.google_sheet.write_german_words import (
+from src.tools.local.google_sheet import (
     GoogleSheetsAddVocabEntryTool,
     GoogleSheetsReadTool,
     GoogleSheetsWriteTool,

@@ -1,4 +1,4 @@
-"""Unified Tools subsystem providing local tools, MCP integrations, and unified ToolManager."""
+"""Local tools package providing built-in tool implementations and factories."""
 
 from src.tools.local.base import BaseTool, ToolConfigType, ToolFactory
 from src.tools.local.google_sheet import (
@@ -18,10 +18,6 @@ from src.tools.local.text_extractor import (
 )
 from src.tools.local.vectordb_base import BaseVectorDB, VectorDBFactory
 from src.tools.local.vectordb_search import VectorDBSearchTool
-from src.tools.manager import ToolManager
-from src.tools.mcp.client import McpServerFactory, make_mcp_tool_callable
-from src.tools.mcp.manager import SHUTDOWN_TIMEOUT, McpConnectionManager, build_session_key
-from src.tools.mcp.server import parse_http_server_kwargs, parse_stdio_server_parameters
 
 __all__ = [
     "BaseTool",
@@ -33,20 +29,12 @@ __all__ = [
     "MIME_MARKDOWN",
     "MIME_PDF",
     "MIME_TEXT",
-    "McpConnectionManager",
-    "McpServerFactory",
     "QdrantVectorDB",
-    "SHUTDOWN_TIMEOUT",
     "SUPPORTED_MIME_TYPES",
     "ToolConfigType",
     "ToolFactory",
-    "ToolManager",
     "VectorDBFactory",
     "VectorDBSearchTool",
-    "build_session_key",
     "extract_text",
     "generate_sparse_vector",
-    "make_mcp_tool_callable",
-    "parse_http_server_kwargs",
-    "parse_stdio_server_parameters",
 ]

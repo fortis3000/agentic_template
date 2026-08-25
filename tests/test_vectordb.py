@@ -5,8 +5,8 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from src.tools.qdrant_db import QdrantVectorDB
-from src.tools.vectordb_base import VectorDBFactory
+from src.tools.local.qdrant_db import QdrantVectorDB
+from src.tools.local.vectordb_base import VectorDBFactory
 
 
 @pytest.fixture(scope="module")
@@ -31,7 +31,7 @@ async def test_qdrant_vectordb_crud_and_tracing(otel_setup):
 
     # 2. Patch trace provider inside qdrant_db to use our mock otel exporter
 
-    with patch("src.tools.qdrant_db.trace.get_tracer") as mock_get_tracer:
+    with patch("src.tools.local.qdrant_db.trace.get_tracer") as mock_get_tracer:
         mock_get_tracer.return_value = provider.get_tracer("qdrant-db")
 
         # 3. Create Collection

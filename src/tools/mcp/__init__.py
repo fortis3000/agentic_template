@@ -1,10 +1,4 @@
-"""Model Context Protocol (MCP) integration package.
-
-.. deprecated::
-    Use :mod:`src.tools.mcp` instead.
-"""
-
-import warnings
+"""Model Context Protocol (MCP) integration package providing client session management and server configuration helpers."""
 
 from src.tools.mcp.client import McpServerFactory, make_mcp_tool_callable
 from src.tools.mcp.manager import (
@@ -15,12 +9,6 @@ from src.tools.mcp.manager import (
 from src.tools.mcp.server import (
     parse_http_server_kwargs,
     parse_stdio_server_parameters,
-)
-
-warnings.warn(
-    "src.mcp_integration is deprecated; use src.tools.mcp instead.",
-    DeprecationWarning,
-    stacklevel=2,
 )
 
 __all__ = [
