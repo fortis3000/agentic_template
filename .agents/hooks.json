@@ -1,13 +1,38 @@
 {
-  "hooks": {
+  "destructive-commands-guard": {
     "enabled": true,
     "PreToolUse": [
       {
-        "matcher": ".*",
+        "matcher": "Bash|bash|run_command|execute_command",
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/python3 scripts/validate_tool_call.py",
+            "command": "uv run scripts/block_destructive_commands.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "env-protection-guard": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "Bash|bash|run_command|execute_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run scripts/block_env_access.py",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "view_file|read_file|open_file|grep_search|file_search|read_resource|read_url_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run scripts/block_env_access.py",
             "timeout": 10
           }
         ]
