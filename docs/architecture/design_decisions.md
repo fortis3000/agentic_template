@@ -106,19 +106,21 @@ Originally, tool implementations and MCP (Model Context Protocol) server integra
 
 ### Decision
 1. Unify all tool and MCP management under the `src/tools/` package:
+   - `src/tools/contracts/`: Leaf contract subpackage defining `McpToolDefinition`, protocols, and type aliases with zero project-internal imports.
    - `src/tools/local/`: Local Python tool implementations (`BaseTool`, `ToolFactory`, vector databases, text extractors, Google Sheets).
    - `src/tools/mcp/`: External Model Context Protocol server integrations (`McpServerFactory`, `McpConnectionManager`, server parameter parsers).
    - `src/tools/manager.py`: Central `ToolManager` facade orchestrating both local tool resolution and external MCP discovery, retry wrapping, tracing, and session cleanup (`close_all()`).
 2. Maintain framework agnosticism: `ToolManager` returns standard Python callables for local tools and `McpToolDefinition` descriptors for MCP tools, allowing any agent SDK (Pydantic AI, Ollama, OpenAI) to adapt them to its native tool binding.
 3. Perform asynchronous parallel discovery of multiple MCP servers via `asyncio.gather`.
-4. Provide backwards compatibility in `src/mcp_integration/` and top-level `src/tools/*` shims by re-exporting symbols and issuing `DeprecationWarning`s.
+4. Perform a clean breaking refactoring without legacy backwards-compatibility shims or deprecation warnings. All consumers import directly from `src.tools`, `src.tools.local`, `src.tools.mcp`, or `src.tools.contracts`.
 5. Update agent generators (`PydanticAIAgentGenerator`) and API lifecycle handlers (`src/api/main.py`) to delegate tool resolution and cleanup directly to `ToolManager`.
 
 ### Consequences
 - **Single Point of Control**: Agent engines only need to interact with `ToolManager` to resolve all tools (local and remote MCP).
 - **Framework Agnostic**: The tooling layer has zero dependencies on specific agent SDKs (e.g. `pydantic-ai`), returning neutral callables and descriptors.
+- **Dependency Inversion**: Dedicated leaf contracts (`src/tools/contracts/` and `src/agents/contracts/`) eliminate circular import risks and decouple domain logic.
 - **Separation of Concerns**: Clear structural separation between in-process `local/` tools and subprocess/network `mcp/` transports.
 - **Consistent Telemetry & Retries**: OpenTelemetry span wrapping and retry configurations are applied uniformly across both local tools and MCP tools.
 - **Clean Lifecycle Management**: `ToolManager.close_all()` provides deterministic shutdown of persistent MCP server sessions and background tasks.
-- **Backwards Compatible**: Existing imports from `src.mcp_integration` and `src.tools` continue functioning with deprecation notices.
+- **No Legacy Debt**: Deprecated shims and warning overhead are eliminated entirely in favor of a clean, direct namespace structure.
 

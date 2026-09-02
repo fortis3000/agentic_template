@@ -1,7 +1,7 @@
 # Model Context Protocol (MCP) Subsystem (`src/tools/mcp/`)
 
 > [!NOTE]
-> As part of the Unified Tool Architecture (ADR 6), MCP integrations are now organized under `src/tools/mcp/` and managed centrally by `ToolManager` (`src/tools/manager.py`). The previous `src/mcp_integration/` module is maintained as a backwards-compatible shim.
+> As part of the Unified Tool Architecture (ADR 6), MCP integrations are organized under `src/tools/mcp/` and managed centrally by `ToolManager` (`src/tools/manager.py`).
 
 ---
 

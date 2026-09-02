@@ -1,22 +1,17 @@
-import importlib
-import warnings
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-import src.mcp_integration
-import src.tools.base
-import src.tools.google_sheet
-import src.tools.google_sheet.write_german_words
-import src.tools.qdrant_db
-import src.tools.text_extractor
-import src.tools.vectordb_base
-import src.tools.vectordb_search
 from src.agents.config import AgentConfigSchema, McpServerConfigSchema, ToolSettingsSchema
+from src.tools.contracts import (
+    BaseToolProtocol,
+    McpToolDefinition,
+    ToolCallable,
+)
 from src.tools.local.base import BaseTool, ToolFactory
 from src.tools.local.vectordb_base import VectorDBFactory
 from src.tools.manager import ToolManager
-from src.tools.mcp.client import McpServerFactory, McpToolDefinition
+from src.tools.mcp.client import McpServerFactory
 from src.tools.mcp.manager import McpConnectionManager
 from src.utils.retry import RetryConfig
 
@@ -235,50 +230,14 @@ async def test_tool_manager_close_all():
         mock_close.assert_awaited_once()
 
 
-def test_mcp_integration_backward_compatibility_deprecation():
-    """Verify that importing from src.mcp_integration issues a DeprecationWarning and re-exports symbols."""
-    with warnings.catch_warnings(record=True) as recorded:
-        warnings.simplefilter("always")
-        importlib.reload(src.mcp_integration)
+def test_tool_contracts_and_protocol_structure():
+    """Verify tool contracts export properly and BaseTool satisfies BaseToolProtocol."""
 
-        assert len(recorded) >= 1
-        assert any(
-            issubclass(w.category, DeprecationWarning)
-            and "src.mcp_integration is deprecated" in str(w.message)
-            for w in recorded
-        )
-        assert src.mcp_integration.McpConnectionManager is McpConnectionManager
-        assert src.mcp_integration.McpServerFactory is McpServerFactory
+    class SampleTool:
+        def get_callable(self) -> ToolCallable:
+            return lambda: "ok"
 
-
-@pytest.mark.parametrize(
-    "module,expected_attrs",
-    [
-        (src.tools.base, ["BaseTool", "ToolConfigType", "ToolFactory"]),
-        (src.tools.qdrant_db, ["QdrantVectorDB", "generate_sparse_vector"]),
-        (src.tools.text_extractor, ["extract_text", "SUPPORTED_MIME_TYPES", "MIME_PDF"]),
-        (src.tools.vectordb_base, ["BaseVectorDB", "VectorDBFactory"]),
-        (src.tools.vectordb_search, ["VectorDBSearchTool"]),
-        (
-            src.tools.google_sheet,
-            ["GoogleSheetsAddVocabEntryTool", "GoogleSheetsReadTool", "GoogleSheetsWriteTool"],
-        ),
-        (
-            src.tools.google_sheet.write_german_words,
-            ["GoogleSheetsAddVocabEntryTool", "GoogleSheetsReadTool", "GoogleSheetsWriteTool"],
-        ),
-    ],
-)
-def test_tools_shims_backward_compatibility_deprecation(module, expected_attrs):
-    """Verify that all src.tools.* backward-compatibility shims issue DeprecationWarnings and re-export."""
-    with warnings.catch_warnings(record=True) as recorded:
-        warnings.simplefilter("always")
-        importlib.reload(module)
-
-        assert len(recorded) >= 1
-        assert any(
-            issubclass(w.category, DeprecationWarning) and "is deprecated" in str(w.message)
-            for w in recorded
-        )
-        for attr in expected_attrs:
-            assert hasattr(module, attr)
+    assert isinstance(SampleTool(), BaseToolProtocol)
+    tool_def = McpToolDefinition(name="echo", callable=lambda: "hello")
+    assert tool_def.name == "echo"
+    assert tool_def.callable() == "hello"

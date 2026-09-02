@@ -4,7 +4,6 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any, Callable
 
-import yaml
 from openinference.semconv.trace import OpenInferenceSpanKindValues, SpanAttributes
 from opentelemetry import trace
 from pydantic_ai import Agent as PA_Agent
@@ -22,9 +21,10 @@ from pydantic_ai.tools import Tool
 
 from src.agents.base import AgentInputPart, BaseAgent, BaseAgentGenerator, ImagePart, TextPart
 from src.agents.config import AgentConfigSchema, AgentYamlConfig
+from src.agents.contracts import AgentConfigProtocol
 from src.agents.prompt_manager import PromptManager
+from src.tools.contracts import McpToolDefinition
 from src.tools.manager import ToolManager
-from src.tools.mcp.client import McpToolDefinition
 from src.utils.logger import get_logger
 from src.utils.retry import RetryConfig, is_retryable_exception, retry_async
 
@@ -268,7 +268,7 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
 
     def create_agent(
         self,
-        config: str | AgentYamlConfig,
+        config: str | Path | AgentConfigProtocol | Any,
         system_variables: dict[str, Any] | None = None,
         tools_registry: dict[str, Callable[..., Any]] | None = None,
         tools_config_path: str | None = None,
@@ -281,7 +281,7 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
         :meth:`create_agent_async` instead.
 
         Args:
-            config: Path to the YAML configuration file or pre-loaded AgentYamlConfig.
+            config: Path to the YAML configuration file or pre-loaded config.
             system_variables: Optional variables to format the system prompt template.
             tools_registry: Optional mapping of tool names to Python callables.
             tools_config_path: Optional path to a YAML file to load tools via ToolFactory.
@@ -302,7 +302,7 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
 
     async def create_agent_async(
         self,
-        config: str | AgentYamlConfig,
+        config: str | Path | AgentConfigProtocol | Any,
         system_variables: dict[str, Any] | None = None,
         tools_registry: dict[str, Callable[..., Any]] | None = None,
         tools_config_path: str | None = None,
@@ -325,19 +325,23 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
 
     def _resolve_agent_config(
         self,
-        config: str | AgentYamlConfig,
+        config: str | Path | AgentConfigProtocol | Any,
         system_variables: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> tuple[AgentConfigSchema, PromptManager, str]:
         """Validate the config and resolve the system prompt."""
-        if isinstance(config, str):
-            # Load and parse YAML config
-            with open(config, encoding="utf-8") as f:
-                config_data = yaml.safe_load(f)
-            # 1. Parse and validate using Pydantic validator
-            validated_config = AgentYamlConfig.model_validate(config_data)
-        else:
+        if isinstance(config, (str, Path)):
+            validated_config = AgentYamlConfig.from_yaml(config)
+        elif isinstance(config, AgentYamlConfig):
             validated_config = config
+        elif isinstance(config, AgentConfigSchema):
+            validated_config = AgentYamlConfig(agent=config)
+        elif hasattr(config, "agent") and isinstance(getattr(config, "agent"), AgentConfigSchema):
+            validated_config = AgentYamlConfig(agent=config.agent)
+        elif hasattr(config, "agent"):
+            validated_config = AgentYamlConfig.model_validate(config)
+        else:
+            validated_config = AgentYamlConfig.model_validate(config)
 
         agent_data_dict = validated_config.agent.model_dump()
 

@@ -6,18 +6,21 @@ both local Python tools and external MCP server integrations.
 
 import asyncio
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, ClassVar, Type
+from typing import Any, ClassVar
 
-from src.agents.tracing import trace_tool
+from src.tools.contracts import (
+    AgentToolConfigProtocol,
+    McpToolDefinition,
+    ToolCallable,
+    ToolRegistry,
+)
 from src.tools.local.base import ToolFactory
 from src.tools.local.vectordb_base import VectorDBFactory
-from src.tools.mcp.client import McpServerFactory, McpToolDefinition, make_mcp_tool_callable
+from src.tools.mcp.client import McpServerFactory, make_mcp_tool_callable
 from src.tools.mcp.manager import McpConnectionManager
 from src.utils.logger import get_logger
 from src.utils.retry import RetryConfig, wrap_tool_with_retry
-
-if TYPE_CHECKING:
-    from src.agents.config import AgentConfigSchema
+from src.utils.tracing import trace_tool
 
 logger = get_logger(__name__)
 
@@ -25,13 +28,13 @@ logger = get_logger(__name__)
 class ToolManager:
     """Unified manager and orchestrator for local tools and external MCP server integrations."""
 
-    tool_factory: ClassVar[Type[ToolFactory]] = ToolFactory
-    mcp_factory: ClassVar[Type[McpServerFactory]] = McpServerFactory
-    mcp_manager: ClassVar[Type[McpConnectionManager]] = McpConnectionManager
-    vectordb_factory: ClassVar[Type[VectorDBFactory]] = VectorDBFactory
+    tool_factory: ClassVar[type[ToolFactory]] = ToolFactory
+    mcp_factory: ClassVar[type[McpServerFactory]] = McpServerFactory
+    mcp_manager: ClassVar[type[McpConnectionManager]] = McpConnectionManager
+    vectordb_factory: ClassVar[type[VectorDBFactory]] = VectorDBFactory
 
     @classmethod
-    def load_local_tools(cls, filepath: str, strict: bool = True) -> dict[str, Callable[..., Any]]:
+    def load_local_tools(cls, filepath: str, strict: bool = True) -> ToolRegistry:
         """Load local tools from a YAML configuration file."""
         return cls.tool_factory.load_from_yaml(filepath, strict=strict)
 
@@ -48,14 +51,14 @@ class ToolManager:
     @classmethod
     def build_mcp_tool(
         cls, config: Any, tool_name: str, description: str | None = None
-    ) -> Callable[..., Any]:
+    ) -> ToolCallable:
         """Create a callable function that invokes an MCP tool on an active session."""
         return make_mcp_tool_callable(config, tool_name, description=description)
 
     @classmethod
     async def resolve_tools(
         cls,
-        config: "AgentConfigSchema | None" = None,
+        config: AgentToolConfigProtocol | None = None,
         *,
         tool_names: list[str] | None = None,
         mcp_servers: dict[str, Any] | None = None,
@@ -98,7 +101,7 @@ class ToolManager:
     @classmethod
     def resolve_tools_sync(
         cls,
-        config: "AgentConfigSchema | None" = None,
+        config: AgentToolConfigProtocol | None = None,
         *,
         tool_names: list[str] | None = None,
         mcp_servers: dict[str, Any] | None = None,
@@ -140,7 +143,7 @@ class ToolManager:
     @classmethod
     def _extract_params(
         cls,
-        config: "AgentConfigSchema | None",
+        config: AgentToolConfigProtocol | None,
         tool_names: list[str] | None,
         mcp_servers: dict[str, Any] | None,
         tool_settings: dict[str, Any] | None,
@@ -155,15 +158,25 @@ class ToolManager:
         dict[str, Any],
         RetryConfig | None,
     ]:
-        resolved_names = tool_names if tool_names is not None else (config.tools if config else [])
-        resolved_servers = (
-            mcp_servers if mcp_servers is not None else (config.mcp_servers if config else {})
+        resolved_names: list[str] = (
+            tool_names
+            if tool_names is not None
+            else (config.tools if (config and config.tools is not None) else [])
         )
-        resolved_settings = (
-            tool_settings if tool_settings is not None else (config.tool_settings if config else {})
+        resolved_servers: dict[str, Any] = (
+            mcp_servers
+            if mcp_servers is not None
+            else (config.mcp_servers if (config and config.mcp_servers is not None) else {})
         )
-        resolved_retry = (
-            retry_config if retry_config is not None else (config.retry if config else None)
+        resolved_settings: dict[str, Any] = (
+            tool_settings
+            if tool_settings is not None
+            else (config.tool_settings if (config and config.tool_settings is not None) else {})
+        )
+        resolved_retry: RetryConfig | None = (
+            retry_config
+            if retry_config is not None
+            else (config.retry if (config and config.retry is not None) else None)
         )
 
         resolved_registry = {**(tools_registry or {})}

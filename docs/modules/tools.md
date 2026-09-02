@@ -11,6 +11,11 @@ Tools are independent, reusable functional units that can be bound to any agent 
 ```text
 src/tools/
 ├── manager.py             <- Unified ToolManager facade (orchestrates local & MCP tools, retries, tracing)
+├── contracts/             <- Zero-dependency leaf contracts, DTOs & protocols
+│   ├── __init__.py        <- Public contract exports
+│   ├── config.py          <- AgentToolConfigProtocol & ToolSettingsProtocol
+│   ├── mcp.py             <- McpToolDefinition descriptor
+│   └── tool.py            <- ToolCallable, ToolRegistry, BaseToolProtocol
 ├── local/                 <- In-process Python tool implementations & factories
 │   ├── base.py            <- BaseTool ABC, ToolConfigType, ToolFactory registry
 │   ├── qdrant_db.py       <- Qdrant vector database integration
@@ -22,7 +27,6 @@ src/tools/
 │   ├── client.py          <- McpServerFactory & make_mcp_tool_callable wrapper
 │   ├── manager.py         <- McpConnectionManager persistent connection pool
 │   └── server.py          <- Stdio / HTTP server connection parameter parsers
-├── base.py                <- Backward-compatible re-exports from src.tools.local.base
 └── __init__.py            <- Clean unified public exports
 ```
 

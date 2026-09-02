@@ -1,5 +1,13 @@
 """Unified Tools subsystem providing local tools, MCP integrations, and unified ToolManager."""
 
+from src.tools.contracts import (
+    AgentToolConfigProtocol,
+    BaseToolProtocol,
+    McpToolDefinition,
+    ToolCallable,
+    ToolRegistry,
+    ToolSettingsProtocol,
+)
 from src.tools.local.base import BaseTool, ToolConfigType, ToolFactory
 from src.tools.local.google_sheet import (
     GoogleSheetsAddVocabEntryTool,
@@ -21,15 +29,26 @@ from src.tools.local.vectordb_search import VectorDBSearchTool
 from src.tools.manager import ToolManager
 from src.tools.mcp.client import (
     McpServerFactory,
-    McpToolDefinition,
     make_mcp_tool_callable,
 )
 from src.tools.mcp.manager import SHUTDOWN_TIMEOUT, McpConnectionManager, build_session_key
 from src.tools.mcp.server import parse_http_server_kwargs, parse_stdio_server_parameters
 
 __all__ = [
+    # Tool Manager Facade
+    "ToolManager",
+    # Tool Contracts & Protocols
+    "AgentToolConfigProtocol",
+    "BaseToolProtocol",
+    "McpToolDefinition",
+    "ToolCallable",
+    "ToolRegistry",
+    "ToolSettingsProtocol",
+    # Local Tool Base & Factory
     "BaseTool",
-    "BaseVectorDB",
+    "ToolConfigType",
+    "ToolFactory",
+    # Built-in Local Tools & Extractor
     "GoogleSheetsAddVocabEntryTool",
     "GoogleSheetsReadTool",
     "GoogleSheetsWriteTool",
@@ -37,20 +56,19 @@ __all__ = [
     "MIME_MARKDOWN",
     "MIME_PDF",
     "MIME_TEXT",
-    "McpConnectionManager",
-    "McpServerFactory",
-    "McpToolDefinition",
     "QdrantVectorDB",
-    "SHUTDOWN_TIMEOUT",
     "SUPPORTED_MIME_TYPES",
-    "ToolConfigType",
-    "ToolFactory",
-    "ToolManager",
-    "VectorDBFactory",
     "VectorDBSearchTool",
-    "build_session_key",
     "extract_text",
     "generate_sparse_vector",
+    # Vector Database Abstractions
+    "BaseVectorDB",
+    "VectorDBFactory",
+    # Model Context Protocol (MCP) Subsystem
+    "McpConnectionManager",
+    "McpServerFactory",
+    "SHUTDOWN_TIMEOUT",
+    "build_session_key",
     "make_mcp_tool_callable",
     "parse_http_server_kwargs",
     "parse_stdio_server_parameters",

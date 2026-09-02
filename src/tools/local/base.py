@@ -1,11 +1,14 @@
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Type
+from typing import Any, TypeVar
 
 import yaml
 
 logger = logging.getLogger(__name__)
+
+TTool = TypeVar("TTool", bound=type["BaseTool"])
 
 
 @dataclass
@@ -13,14 +16,14 @@ class ToolConfigType:
     """Structure defining a tool configuration."""
 
     type: str
-    config: Dict[str, Any] = field(default_factory=dict)
+    config: dict[str, Any] = field(default_factory=dict)
 
 
 class BaseTool(ABC):
     """Abstract base class for all tools."""
 
     @abstractmethod
-    def get_callable(self) -> Callable:
+    def get_callable(self) -> Callable[..., Any]:
         """Return the function or method that executes the tool.
 
         The returned callable should have proper type hints and docstrings
@@ -32,17 +35,17 @@ class BaseTool(ABC):
 class ToolFactory:
     """Registry pattern factory for dynamically instantiating tools."""
 
-    _registry: Dict[str, Type[BaseTool]] = {}
+    _registry: dict[str, type[BaseTool]] = {}
 
     @classmethod
-    def register(cls, name: str) -> Callable:
+    def register(cls, name: str) -> Callable[[TTool], TTool]:
         """Decorator to register a tool class under a given name.
 
         Args:
             name: The string identifier for the tool type.
         """
 
-        def inner_wrapper(wrapped_class: Type[BaseTool]) -> Type[BaseTool]:
+        def inner_wrapper(wrapped_class: TTool) -> TTool:
             if name in cls._registry:
                 logger.warning(f"Tool '{name}' is already registered. Overwriting.")
             cls._registry[name] = wrapped_class
@@ -51,7 +54,7 @@ class ToolFactory:
         return inner_wrapper
 
     @classmethod
-    def create(cls, name: str, config: Dict[str, Any]) -> BaseTool:
+    def create(cls, name: str, config: dict[str, Any]) -> BaseTool:
         """Instantiate a tool using its registered name and configuration.
 
         Args:
@@ -65,7 +68,7 @@ class ToolFactory:
         return tool_class(**config)
 
     @classmethod
-    def load_from_yaml(cls, filepath: str, strict: bool = True) -> Dict[str, Callable]:
+    def load_from_yaml(cls, filepath: str, strict: bool = True) -> dict[str, Callable[..., Any]]:
         """Load tools from a YAML configuration file.
 
         Args:

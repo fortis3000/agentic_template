@@ -39,6 +39,15 @@
 ## Style & conventions
 
 - Formatting/linting is enforced via `ruff` (line length 100, target py313).
+- **Modern Python (3.11+) Typing**:
+  - Prefer built-in collections (`dict`, `list`, `set`, `tuple`, `type`, `collections.abc.Callable`, `collections.abc.AsyncIterator`) over `typing.Dict`, `typing.List`, `typing.Callable`, etc.
+  - Use native union syntax `|` instead of `typing.Union` and `typing.Optional`.
+  - Use `typing.Self` for class constructors (`from_yaml`, `from_file`), builder methods, and fluent APIs returning instance types.
+  - Use PEP 695 `type` syntax for clean type aliases where appropriate.
+  - Define structural interfaces using `typing.Protocol`.
+- **Leaf Contracts Architecture**:
+  - Store protocols, DTOs, and interface definitions in dedicated leaf `contracts/` subpackages (e.g. `src/tools/contracts/`, `src/agents/contracts/`).
+  - Leaf contract modules MUST have **zero internal project imports** (importing only from standard library) to eliminate circular dependencies and ensure clean dependency inversion.
 - Follow existing typing patterns; avoid introducing new style/tooling unless required.
 - Don't reformat unrelated code.
 - **Semantic Commits**: Always use semantic commit messages following the Conventional Commits specification.
