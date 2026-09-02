@@ -145,3 +145,55 @@ flowchart TD
     Step7 --> Step8["8. Create a PR & Fill Template<br/>(gh pr create --body-file ... or submit_pr.sh)"]
     Step8 --> Merge([PR Merged to Master])
 ```
+
+---
+
+## 5. Unified Tool & MCP Subsystem Architecture
+
+```mermaid
+graph TD
+    subgraph Consumers["Agent & API Consumers"]
+        AgentGen["PydanticAIAgentGenerator / Agent Backends"]
+        APIGateway["FastAPI main.py (Lifespan & Dynamic Load)"]
+    end
+
+    subgraph ToolingSubsystem["Unified Tooling Layer (src/tools/)"]
+        TM["ToolManager (src/tools/manager.py)"]
+        RetryTracer["Retry Wrapping & OpenTelemetry Tracing<br/>(wrap_tool_with_retry, trace_tool)"]
+        Desc["Framework-Neutral Descriptors<br/>(Callables & McpToolDefinition)"]
+    end
+
+    subgraph LocalTools["Local Tools (src/tools/local/)"]
+        TF["ToolFactory & BaseTool (local/base.py)"]
+        Qdrant["QdrantVectorDB (local/qdrant_db.py)"]
+        Extractor["TextExtractor (local/text_extractor.py)"]
+        Search["VectorDBSearchTool (local/vectordb_search.py)"]
+        Sheets["Google Sheets Tools (local/google_sheet/)"]
+    end
+
+    subgraph MCPTools["Model Context Protocol (src/tools/mcp/)"]
+        McpFactory["McpServerFactory (mcp/client.py)"]
+        McpManager["McpConnectionManager (mcp/manager.py)"]
+        StdioServers["External Stdio MCP Servers<br/>(filesystem, context7, etc.)"]
+        SseServers["External HTTP/SSE MCP Servers"]
+    end
+
+    AgentGen -->|resolve_tools / resolve_tools_sync| TM
+    APIGateway -->|close_all / load_local_tools| TM
+
+    TM -->|Load YAML & Instantiate| TF
+    TF --> Qdrant
+    TF --> Extractor
+    TF --> Search
+    TF --> Sheets
+
+    TM -->|Async Parallel Discovery| McpFactory
+    TM -->|Persistent Session Pool| McpManager
+
+    McpManager -->|Stdio IPC Protocol| StdioServers
+    McpManager -->|SSE Protocol| SseServers
+
+    TM --> RetryTracer
+    RetryTracer --> Desc
+    Desc -->|Return Callables & Descriptors| AgentGen
+```

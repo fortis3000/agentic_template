@@ -1,17 +1,17 @@
 import asyncio
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import Any, ClassVar
 
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
 
-from src.mcp_integration.manager import McpConnectionManager, build_session_key
-from src.mcp_integration.server import parse_http_server_kwargs, parse_stdio_server_parameters
+from src.tools.contracts.mcp import McpToolDefinition
+from src.tools.mcp.manager import McpConnectionManager, build_session_key
+from src.tools.mcp.server import parse_http_server_kwargs, parse_stdio_server_parameters
 from src.utils.logger import get_logger
 
-if TYPE_CHECKING:
-    pass
+__all__ = ["McpServerFactory", "McpToolDefinition", "make_mcp_tool_callable"]
 
 logger = get_logger(__name__)
 

@@ -7,13 +7,13 @@ The codebase documentation is organized into clear architectural specs, subsyste
 - **[Documentation Hub Index](docs/README.md)**: Main sitemap and index for system specs, modules, and runbooks.
 - **[Architecture Specs](docs/architecture/system_overview.md)**: [System Overview](docs/architecture/system_overview.md) | [Architecture Diagrams](docs/architecture/diagrams.md) | [Design Decisions (ADRs)](docs/architecture/design_decisions.md)
 - **[Architectural Module Deep-Dives](docs/modules/tools.md)**:
-  - 🛠️ [Tooling Architecture & Tool Factory](docs/modules/tools.md) (ToolFactory, Qdrant tool, Text Extractor, Custom Tool Extension Guide)
+  - 🛠️ [Tooling Architecture & Tool Manager](docs/modules/tools.md) (ToolManager, local tools, MCP integrations, Custom Tool Extension Guide)
   - 🤖 [Agent Framework & SDK Abstractions](docs/modules/agents.md) (BaseAgent, Pydantic AI, Agent Extension Guide)
   - 📊 [Arize Phoenix Observability & Evals](docs/modules/evals_observability.md) (OpenTelemetry spans, token metrics, Phoenix UI)
   - 🎨 [User Frontend UI Subsystem](docs/modules/frontend.md) (Svelte 5 + Vite + TypeScript, reactive state controller)
   - ⚡ [API Gateway & Web Server](docs/modules/api.md) (FastAPI main.py, REST endpoints, streaming SSE, file processing)
   - 📄 [Ingestion Pipeline Subsystem](docs/modules/ingestion.md) (Fixed, Markdown, and Semantic chunkers, Qdrant indexing)
-  - 🔌 [Model Context Protocol (MCP) Subsystem](docs/modules/mcp_integration.md) (Stdio client, connection pool, tool discovery)
+  - 🔌 [Model Context Protocol (MCP) Subsystem](docs/modules/mcp_integration.md) (Stdio/SSE client, connection pool, tool discovery)
   - ⚙️ [Shared Utilities Subsystem](docs/modules/utils.md) (Logger, exponential backoff retry, PR validator)
 - **[Developer Guides & Runbooks](docs/guides/quickstart.md)**:
   - 🚀 [Developer Quickstart](docs/guides/quickstart.md) | 💻 [Execution Runbook & How-To Runs](docs/guides/how_to_runs.md)
@@ -43,9 +43,9 @@ The codebase documentation is organized into clear architectural specs, subsyste
     ├── api            <- FastAPI web server, REST endpoints, and SSE streaming
     ├── evals          <- Observability frameworks (Arize Phoenix, OTel tracing)
     ├── ingestion      <- Document chunkers (Fixed, Markdown, Semantic) & Qdrant pipeline
-    ├── mcp_integration<- Model Context Protocol (MCP) stdio client & connection pool
+    ├── mcp_integration<- Deprecated MCP integration shims (forwarding to src/tools/mcp)
     ├── prompts        <- System and user prompt templates
-    ├── tools          <- Tool Factory, Qdrant DB tool, TextExtractor, Google Sheets
+    ├── tools          <- Unified ToolManager, local tools (Qdrant, TextExtractor, Sheets), and MCP client
     └── utils          <- Shared utilities (logger, retry framework, PR validator)
 ```
 

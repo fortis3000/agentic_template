@@ -74,7 +74,7 @@ templater = "jinja"
 source_paths = [
     "src/utils/retry.py",
     "src/utils/pr_validator.py",
-    "src/tools/text_extractor.py",
+    "src/tools/local/text_extractor.py",
     "src/agents/config.py",
 ]
 also_copy = [
@@ -97,12 +97,13 @@ pytest_add_cli_args = [
 
 [tool.pytest.ini_options]
 # `src` on sys.path is required by mutmut: it derives mutant keys from the path with `src/`
-# stripped (e.g. `tools.text_extractor`), so the tests it runs must import the same way.
+# stripped (e.g. `tools.local.text_extractor`), so the tests it runs must import the same way.
 # Consequence: modules under src/ are importable both as `tools.x` and `src.tools.x`, and
 # the two are distinct objects. Modules that register into a factory at import time must
 # therefore import that factory *relatively* (`from .base import ToolFactory`), or the
 # second load overwrites the first's entry and `isinstance` checks fail. See the relative
-# imports in src/tools/qdrant_db.py and src/tools/vectordb_search.py.
+# imports in src/tools/local/qdrant_db.py, src/tools/local/vectordb_search.py, and
+# src/tools/local/google_sheet/write_german_words.py.
 pythonpath = [".", "src"]
 norecursedirs = ["mutants", ".git", ".venv", ".pytest_cache", ".ruff_cache", "frontend", ".worktrees"]
 

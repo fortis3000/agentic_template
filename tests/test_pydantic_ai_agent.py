@@ -7,7 +7,7 @@ from pydantic_ai.models.test import TestModel
 from src.agents.base import AgentInputPart, ImagePart, TextPart
 from src.agents.prompt_manager import PromptManager
 from src.agents.pydantic_ai import PydanticAIAgent, PydanticAIAgentGenerator
-from src.tools.base import BaseTool, ToolFactory
+from src.tools.local.base import BaseTool, ToolFactory
 
 
 def test_prompt_manager_inline():

@@ -1,5 +1,7 @@
-from typing import Any
+from pathlib import Path
+from typing import Any, Self
 
+import yaml
 from pydantic import BaseModel, Field, model_validator
 
 from src.agents.prompt_manager import PromptManager
@@ -174,3 +176,19 @@ class AgentConfigSchema(BaseModel):
 class AgentYamlConfig(BaseModel):
     agent: AgentConfigSchema
     phoenix: PhoenixConfigSchema | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Create an AgentYamlConfig instance from a raw dictionary."""
+        return cls.model_validate(data)
+
+    @classmethod
+    def from_yaml(cls, path: str | Path) -> Self:
+        """Load and parse an AgentYamlConfig instance from a YAML file."""
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        return cls.from_dict(data)
+
+    def with_overrides(self, **overrides: Any) -> Self:
+        """Return a copy of the configuration with specified field overrides."""
+        return self.model_copy(update=overrides, deep=True)

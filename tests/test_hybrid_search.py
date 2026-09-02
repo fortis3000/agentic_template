@@ -2,7 +2,7 @@ import uuid
 
 import pytest
 
-from src.tools.qdrant_db import QdrantVectorDB
+from src.tools.local.qdrant_db import QdrantVectorDB
 
 
 @pytest.mark.asyncio
