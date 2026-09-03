@@ -17,7 +17,8 @@ __load_github_token() {
   token="$(grep -E '^GITHUB_TOKEN=' "$env_file" | head -n1 | cut -d= -f2- | xargs)"
   [ -n "$token" ] || return 1
   export GITHUB_TOKEN="$token"
-  echo "load_env: exported GITHUB_TOKEN from $env_file" >&2
+  export GH_TOKEN="$token"
+  echo "load_env: exported GITHUB_TOKEN and GH_TOKEN from $env_file" >&2
   return 0
 }
 
@@ -25,8 +26,12 @@ if __load_github_token "$PWD/.env"; then
   :
 elif __load_github_token "$PWD/../.env"; then
   :
+elif __load_github_token "$PWD/../../.env"; then
+  :
+elif __load_github_token "$(git rev-parse --git-common-dir 2>/dev/null)/../.env"; then
+  :
 else
-  echo "load_env: no non-empty GITHUB_TOKEN found in ./.env or ../.env" >&2
+  echo "load_env: no non-empty GITHUB_TOKEN found" >&2
 fi
 
 unset -f __load_github_token
