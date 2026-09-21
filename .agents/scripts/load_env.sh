@@ -14,7 +14,7 @@ __load_github_token() {
   local env_file="$1"
   [ -f "$env_file" ] || return 1
   local token
-  token="$(grep -E '^GITHUB_TOKEN=' "$env_file" | head -n1 | cut -d= -f2- | xargs)"
+  token="$(grep -E '^[[:space:]]*(export[[:space:]]+)?(GITHUB_TOKEN|GH_TOKEN)[[:space:]]*=' "$env_file" | head -n1 | sed -E 's/^[[:space:]]*(export[[:space:]]+)?(GITHUB_TOKEN|GH_TOKEN)[[:space:]]*=[[:space:]]*//' | sed -E 's/^["'\''"]//; s/["'\''"][[:space:]]*$//' | xargs)"
   [ -n "$token" ] || return 1
   export GITHUB_TOKEN="$token"
   export GH_TOKEN="$token"
