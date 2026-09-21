@@ -17,8 +17,8 @@ The codebase documentation is organized into clear architectural specs, subsyste
   - ⚙️ [Shared Utilities Subsystem](docs/modules/utils.md) (Logger, exponential backoff retry, PR validator)
 - **[Developer Guides & Runbooks](docs/guides/quickstart.md)**:
   - 🚀 [Developer Quickstart](docs/guides/quickstart.md) | 💻 [Execution Runbook & How-To Runs](docs/guides/how_to_runs.md)
-  - 🐳 [Docker & Qdrant Operations](docs/guides/docker_and_qdrant.md) | 🔍 [RAG & Document Ingestion Guide](docs/guides/rag_and_ingestion.md)
-  - 🧪 [Testing, Linting & Quality Control](docs/guides/testing_and_validation.md)
+  - 🐳 [Docker & Qdrant Operations](docs/guides/docker_and_qdrant.md) | 🔌 [VectorDB MCP Guide](docs/guides/vectordb_mcp_service.md)
+  - 🔍 [RAG & Document Ingestion Guide](docs/guides/rag_and_ingestion.md) | 🧪 [Testing, Linting & Quality Control](docs/guides/testing_and_validation.md)
 
 ---
 

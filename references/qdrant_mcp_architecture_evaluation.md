@@ -80,5 +80,6 @@ The `agent-api` backend connects via `McpConnectionManager` using Pydantic's `ht
 ---
 
 ## Primary Sources
-- Qdrant Team, *`qdrant/mcp-server-qdrant` Repository*, https://github.com/qdrant/mcp-server-qdrant.
-- Model Context Protocol Python SDK & FastMCP Documentation, https://modelcontextprotocol.io.
+- Qdrant Team, *`qdrant/mcp-server-qdrant` Repository*, [GitHub](https://github.com/qdrant/mcp-server-qdrant).
+- Model Context Protocol Python SDK & FastMCP Documentation, [Model Context Protocol](https://modelcontextprotocol.io).
+

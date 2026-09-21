@@ -81,5 +81,6 @@ Traditional vector quantization methods face a fundamental dilemma:
 
 ## Primary Sources
 - Amir Zandieh et al., *"TurboQuant: Online Vector Quantization with Near-optimal Distortion Rate"*, arXiv:2504.19874, ICLR 2026.
-- Ryan Codrai, *turbovec Repository*, https://github.com/RyanCodrai/turbovec.
-- Qdrant Documentation, *"TurboQuant Quantization in Qdrant"*, https://qdrant.tech/articles/turboquant-quantization/.
+- Ryan Codrai, *turbovec Repository*, [GitHub](https://github.com/RyanCodrai/turbovec).
+- Qdrant Documentation, *"TurboQuant Quantization in Qdrant"*, [Qdrant Article](https://qdrant.tech/articles/turboquant-quantization/).
+

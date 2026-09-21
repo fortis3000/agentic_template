@@ -57,13 +57,38 @@ Open `http://localhost:5173` in your browser to interact with the full web UI.
 
 ## 3. Running All Services via Docker Compose
 
-To launch the full stack (FastAPI App, Qdrant Vector DB, and Arize Phoenix UI) in unified containers:
+To launch the full stack (FastAPI App, VectorDB MCP Service, Qdrant Vector DB, and Arize Phoenix UI) in unified containers:
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 Access points:
 - **Web UI / App**: `http://localhost:5173` / `http://localhost:8000`
+- **VectorDB MCP Service**: `http://localhost:8001/sse` (Health: `http://localhost:8001/healthz`)
 - **Qdrant Dashboard**: `http://localhost:6333/dashboard`
 - **Arize Phoenix UI**: `http://localhost:6006`
+
+---
+
+## 4. Running VectorDB FastMCP Microservice
+
+### 4.1 Standalone Local Server
+Run the FastMCP ASGI server directly using Uvicorn:
+
+```bash
+# Start local Qdrant first
+docker compose up -d qdrant
+
+# Run the FastMCP service
+uv run uvicorn src.tools.mcp.servers.vectordb:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### 4.2 Docker Compose Dedicated Target
+```bash
+docker compose up -d vectordb-mcp
+curl http://localhost:8001/healthz
+```
+
+For tool parameters, contracts, and programmatic Python client examples, see [VectorDB MCP Microservice Guide](vectordb_mcp_service.md).
+

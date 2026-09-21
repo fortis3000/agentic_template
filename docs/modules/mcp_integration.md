@@ -54,3 +54,17 @@ When an MCP tool response contains `ImageContent` blocks, the client extracts ba
 
 ### 4.3 Native Pydantic AI Toolsets (`native_pydantic_toolset`)
 When `native_pydantic_toolset: true` is set in the server configuration, `PydanticAIAgentGenerator` bypasses generic wrapping and mounts a native `pydantic_ai.mcp.MCPToolset` directly, providing access to MCP sampling and deferred tool loading.
+
+---
+
+## 5. FastMCP Server Microservices (`src/tools/mcp/servers/`)
+
+In addition to consuming external MCP servers, the repository provides first-party, containerized MCP servers built with `FastMCP`:
+
+- **VectorDB MCP Server (`src/tools/mcp/servers/vectordb.py`)**:
+  - Exposes `vectordb_search` (dense, hybrid sparse, multimodal image search) and `vectordb_store` (dual-vector indexing with deterministic UUIDv5 hashing).
+  - Employs self-contained embedding models (`EmbeddingModelFactory`) to decouple agents from embedding models.
+  - Serves as a Starlette ASGI app over HTTP/SSE via `uvicorn src.tools.mcp.servers.vectordb:app --host 0.0.0.0 --port 8000`.
+  - Integrates `/healthz` health checking and Arize Phoenix retriever spans.
+  - For configuration and run guides, see [VectorDB MCP Microservice Guide](../guides/vectordb_mcp_service.md).
+

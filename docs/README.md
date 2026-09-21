@@ -27,6 +27,7 @@ The documentation is organized into three main sections:
 - **[Developer Quickstart](guides/quickstart.md)**: Prerequisites, `uv` environment sync, `.env` setup, and pre-commit hooks.
 - **[Execution Runbook & How-To Runs](guides/how_to_runs.md)**: Command guide for running Pydantic AI agent, Ollama agent, FastAPI backend, and Svelte frontend.
 - **[Docker & Qdrant Operations](guides/docker_and_qdrant.md)**: `docker-compose.yml` multi-container orchestration (App, Qdrant, Arize Phoenix).
+- **[VectorDB MCP Microservice Guide](guides/vectordb_mcp_service.md)**: FastMCP ASGI architecture, endpoints (`/healthz`, `/sse`), Docker Compose setup, and Python client integration.
 - **[RAG Operations & Document Ingestion](guides/rag_and_ingestion.md)**: End-to-end RAG guide for document parsing, chunking configuration, vector indexing, and search queries.
 - **[Testing, Linting & Quality Control](guides/testing_and_validation.md)**: Matrix of quality tools, running `pytest`, Ruff formatting/linting, pre-commit hooks, and PR validation.
 - **[Mutation Testing Guide](mutation_testing.md)**: `mutmut` setup, target modules, execution command (`make mutate`), TUI browser, and mutant handling.
