@@ -4,9 +4,8 @@ import sys
 from pathlib import Path
 
 # Path to the validation script
-SCRIPT_PATH = Path(__file__).parent.parent / ".agents" / "scripts" / "validate_tool_call.py"
+SCRIPT_PATH = Path(__file__).parent.parent / ".agents" / "scripts" / "block_destructive_commands.py"
 
-# Expected exit code when a tool call is blocked
 BLOCK_EXIT_CODE = 2
 
 
@@ -28,6 +27,22 @@ def test_allow_safe_commands():
     result = run_validation_script(json.dumps(payload))
     assert result.returncode == 0
     assert result.stderr == ""
+    data = json.loads(result.stdout)
+    assert data["decision"] == "allow"
+
+
+def test_allow_safe_protojson_toolcall():
+    payload = {
+        "toolCall": {
+            "name": "run_command",
+            "args": {"CommandLine": "ls -la"},
+        }
+    }
+    result = run_validation_script(json.dumps(payload))
+    assert result.returncode == 0
+    assert result.stderr == ""
+    data = json.loads(result.stdout)
+    assert data["decision"] == "allow"
 
 
 def test_allow_other_tools():
@@ -38,12 +53,16 @@ def test_allow_other_tools():
     result = run_validation_script(json.dumps(payload))
     assert result.returncode == 0
     assert result.stderr == ""
+    data = json.loads(result.stdout)
+    assert data["decision"] == "allow"
 
 
 def test_fail_invalid_json():
     result = run_validation_script("invalid json")
     assert result.returncode == BLOCK_EXIT_CODE
     assert "Error parsing stdin" in result.stderr
+    data = json.loads(result.stdout)
+    assert data["decision"] == "deny"
 
 
 def test_block_destructive_rm_rf_root():
@@ -55,18 +74,22 @@ def test_block_destructive_rm_rf_root():
         "rm -f -r /",
         "rm -rf '/'",
         'rm -rf "/"',
-        "rm -rf  /",  # multiple spaces
-        " rm -rf / ",  # leading/trailing spaces
+        "rm -rf  /",
+        " rm -rf / ",
     ]
 
     for cmd in bad_commands:
         payload = {
-            "tool_name": "run_command",
-            "tool_input": {"CommandLine": cmd},
+            "toolCall": {
+                "name": "run_command",
+                "args": {"CommandLine": cmd},
+            }
         }
         result = run_validation_script(json.dumps(payload))
         assert result.returncode == BLOCK_EXIT_CODE, f"Failed to block: {cmd}"
         assert "Destructive command detected" in result.stderr, f"Missing block message for: {cmd}"
+        data = json.loads(result.stdout)
+        assert data["decision"] == "deny"
 
 
 def test_allow_non_destructive_rm():
@@ -88,3 +111,5 @@ def test_allow_non_destructive_rm():
         result = run_validation_script(json.dumps(payload))
         assert result.returncode == 0, f"Incorrectly blocked: {cmd}"
         assert result.stderr == ""
+        data = json.loads(result.stdout)
+        assert data["decision"] == "allow"

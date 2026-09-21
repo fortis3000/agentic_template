@@ -22,7 +22,7 @@ async def test_qdrant_hybrid_and_multimodal_search():
     namespace = uuid.UUID("37000000-0000-0000-0000-000000000037")
     point1_id = str(uuid.uuid5(namespace, "point-1"))
     point2_id = str(uuid.uuid5(namespace, "point-2"))
-    ids = [point1_id, point2_id]
+    ids: list[str | int] = [point1_id, point2_id]
     vectors = [
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
