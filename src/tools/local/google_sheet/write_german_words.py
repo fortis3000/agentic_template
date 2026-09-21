@@ -1,8 +1,9 @@
 import logging
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable, Dict, List
+from typing import Any
 
-from src.tools.base import BaseTool, ToolFactory
+from src.tools.local.base import BaseTool, ToolFactory
 from src.utils.google_sheets import GoogleSheetsClient, VocabEntry
 
 logger = logging.getLogger(__name__)
@@ -16,8 +17,8 @@ class GoogleSheetsReadTool(BaseTool):
         self.client = GoogleSheetsClient(credentials_path=credentials_path)
         self.spreadsheet_id = spreadsheet_id
 
-    def get_callable(self) -> Callable:
-        def read_google_sheet(range_name: str) -> List[List[Any]]:
+    def get_callable(self) -> Callable[..., Any]:
+        def read_google_sheet(range_name: str) -> list[list[Any]]:
             """Reads a range from the configured Google Sheet.
 
             Args:
@@ -39,8 +40,8 @@ class GoogleSheetsWriteTool(BaseTool):
         self.client = GoogleSheetsClient(credentials_path=credentials_path)
         self.spreadsheet_id = spreadsheet_id
 
-    def get_callable(self) -> Callable:
-        def write_google_sheet(range_name: str, values: List[List[Any]]) -> Dict[str, Any]:
+    def get_callable(self) -> Callable[..., Any]:
+        def write_google_sheet(range_name: str, values: list[list[Any]]) -> dict[str, Any]:
             """Writes a contiguous block of values to the configured Google Sheet.
 
             Performs a pre-write check to store original values and a post-write check
@@ -118,7 +119,7 @@ class GoogleSheetsAddVocabEntryTool(BaseTool):
         self.client = GoogleSheetsClient(credentials_path=credentials_path)
         self.spreadsheet_id = spreadsheet_id
 
-    def get_callable(self) -> Callable:
+    def get_callable(self) -> Callable[..., Any]:
         def add_vocab_entry(
             target_german: str,
             gender: str,
@@ -130,7 +131,7 @@ class GoogleSheetsAddVocabEntryTool(BaseTool):
             antonym: str = "",
             media: str = "",
             tags: str = "",
-        ) -> Dict[str, Any]:
+        ) -> dict[str, Any]:
             """Adds a new vocabulary entry to the configured Google Sheet.
 
             Generates a unique ID (e.g. vocab_word_YYMMDD) and appends the entry

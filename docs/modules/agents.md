@@ -8,13 +8,16 @@ This document provides architectural and technical specifications for the core A
 
 The Agent engine decouples business application code from specific LLM framework implementations. Applications interact strictly with `BaseAgent` and input parts (`TextPart`, `ImagePart`, `FilePart`), enabling seamless switching between model providers and SDKs.
 
-Key files:
-- [`src/agents/base.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/agents/base.py): Abstract base classes (`BaseAgent`, `BaseAgentGenerator`) and multimodal input models (`TextPart`, `ImagePart`, `FilePart`).
-- [`src/agents/pydantic_ai.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/agents/pydantic_ai.py): Pydantic AI framework integration (`PydanticAIAgent`).
-- [`src/agents/tracing.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/agents/tracing.py): Tool tracing decorator (`trace_tool`).
-- [`src/agents/config.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/agents/config.py): Configuration parser (`AgentYamlConfig`).
-- [`src/agents/embeddings.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/agents/embeddings.py): Embedding model factory (`EmbeddingModelFactory`).
-- [`src/agents/prompt_manager.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/agents/prompt_manager.py): System & user prompt template engine.
+Key modules:
+- `src/agents/contracts/`: Zero-dependency leaf contracts defining structural protocols:
+  - `config.py`: `AgentConfigProtocol` for duck-typed configuration access.
+  - `agent.py`: `AgentRunnerProtocol` for structural agent runners.
+- `src/agents/base.py`: Abstract base classes (`BaseAgent`, `BaseAgentGenerator`) and multimodal input models (`TextPart`, `ImagePart`, `FilePart`).
+- `src/agents/pydantic_ai.py`: Pydantic AI framework integration (`PydanticAIAgent`, `PydanticAIAgentGenerator`).
+- `src/agents/tracing.py`: Tool tracing decorator (`trace_tool`).
+- `src/agents/config.py`: Configuration parser (`AgentYamlConfig`, `AgentConfigSchema`).
+- `src/agents/embeddings.py`: Embedding model factory (`EmbeddingModelFactory`).
+- `src/agents/prompt_manager.py`: System & user prompt template engine.
 
 ---
 
@@ -33,6 +36,9 @@ Key files:
 ### 2.3 Pydantic AI Agent Wrapper (`src/agents/pydantic_ai.py`)
 - **Key Features**: Strictly-typed Pydantic response models, native tool calling, OpenTelemetry tracing instrumentation.
 - **Provider Support**: Ollama (`ollama:qwen2.5-coder:7b`), Gemini (`google-gla:gemini-2.5-flash`), OpenAI (`openai:gpt-4o`).
+- **Unified Tool Resolution**: Interacts directly with `ToolManager.resolve_tools_sync` / `resolve_tools` to bind both local Python tools and external MCP servers.
+- **Multimodal Adaptation**: Automatically maps multimodal dictionaries returned by MCP tools (`bytes` or base64 image data) into Pydantic AI native `BinaryContent` parts for vision models.
+- **Native Toolset Partitioning**: Supports `native_pydantic_toolset: true` in `McpServerConfigSchema` to mount `pydantic_ai.mcp.MCPToolset` instances directly for MCP sampling and deferred tool loading.
 
 ---
 
@@ -43,6 +49,8 @@ Parses `configs/agent_config.yaml` to specify:
 - `model`: Provider, model name, temperature, top_p, max_tokens.
 - `system_prompt`: Path to system prompt text file or raw template string.
 - `tools`: Configured tool list and settings.
+- `mcp_servers`: External MCP server definitions with optional `tool_prefix` and `native_pydantic_toolset`.
+- `tool_settings`: Granular tool overrides (retries, field filtering, `raise_on_error`).
 - `phoenix`: Arize Phoenix telemetry project name and collector endpoint.
 
 ### 3.2 Prompt Manager (`src/agents/prompt_manager.py`)
@@ -80,7 +88,7 @@ class CustomFrameworkAgent(BaseAgent):
 ```
 
 ### Step 2: Implement Generator (`BaseAgentGenerator`)
-Add `CustomAgentGenerator` in the same file to parse `AgentYamlConfig` and instantiate `CustomFrameworkAgent`.
+Add `CustomAgentGenerator` in the same file to parse `AgentYamlConfig` (or protocol) and resolve tools via `ToolManager.resolve_tools_sync`.
 
 ### Step 3: Register in Agent Factory & Add Tests
 Add unit tests in `tests/test_agents/test_custom_framework.py` verifying synchronous, asynchronous, and streaming invocations.

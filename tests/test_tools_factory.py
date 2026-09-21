@@ -1,6 +1,6 @@
 import pytest
 
-from src.tools.base import BaseTool, ToolFactory
+from src.tools.local.base import BaseTool, ToolFactory
 
 EXPECTED_VALUE = 42
 

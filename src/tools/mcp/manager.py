@@ -6,7 +6,7 @@ from mcp import ClientSession
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
 
-from src.mcp_integration.server import parse_http_server_kwargs, parse_stdio_server_parameters
+from src.tools.mcp.server import parse_http_server_kwargs, parse_stdio_server_parameters
 from src.utils.logger import get_logger
 
 if TYPE_CHECKING:

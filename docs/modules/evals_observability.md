@@ -9,8 +9,8 @@ This document provides technical documentation for the Observability and Tracing
 Every execution step in an agent workflow—including system prompt compilation, LLM API generation calls, tool invocations, retries, and data transformations—is automatically instrumented using **OpenTelemetry** and **OpenInference** semantic conventions.
 
 Key files:
-- [`src/evals/phoenix_service.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/evals/phoenix_service.py): Service initialization, exporter binding, and tracer setup.
-- [`configs/agent_config.yaml`](file:///Users/user/Documents/projects/agentic_template/agentic_template/configs/agent_config.yaml): Telemetry project configuration.
+- `src/evals/phoenix_service.py`: Service initialization, exporter binding, and tracer setup.
+- `configs/agent_config.yaml`: Telemetry project configuration.
 
 ---
 

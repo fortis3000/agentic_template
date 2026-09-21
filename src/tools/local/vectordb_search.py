@@ -4,11 +4,9 @@ from typing import Any, Callable
 
 from src.agents.config import EmbeddingModelConfigSchema, VectorDBConfigSchema
 from src.agents.embeddings import EmbeddingModelFactory
+from src.tools.local.base import BaseTool, ToolFactory
+from src.tools.local.qdrant_db import QdrantVectorDB
 from src.utils.logger import get_logger
-
-# Relative: this module registers itself below — see the note in src/tools/qdrant_db.py.
-from .base import BaseTool, ToolFactory
-from .qdrant_db import QdrantVectorDB
 
 logger = get_logger(__name__)
 

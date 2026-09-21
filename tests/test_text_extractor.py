@@ -1,6 +1,6 @@
 import pytest
 
-from tools.text_extractor import extract_text
+from src.tools.local.text_extractor import extract_text
 
 
 def test_extract_text_from_txt_utf8():

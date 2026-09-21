@@ -1,7 +1,7 @@
 import pytest
 
-from src.mcp_integration.client import McpServerFactory
-from src.mcp_integration.manager import McpConnectionManager
+from src.tools.mcp.client import McpServerFactory
+from src.tools.mcp.manager import McpConnectionManager
 
 
 @pytest.fixture(autouse=True)

@@ -25,8 +25,8 @@ from pydantic.types import Base64Bytes
 from src.agents.base import AgentInputPart, ImagePart, TextPart
 from src.agents.config import AgentYamlConfig, FileConstraints, ImageConstraints
 from src.agents.pydantic_ai import PydanticAIAgentGenerator
-from src.tools.base import ToolFactory
-from src.tools.text_extractor import extract_text
+from src.tools.local.text_extractor import extract_text
+from src.tools.manager import ToolManager
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -88,10 +88,8 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Close persistent MCP connections
-    from src.mcp_integration import McpConnectionManager  # noqa: PLC0415
-
-    await McpConnectionManager.close_all()
+    # Close persistent MCP connections via ToolManager
+    await ToolManager.close_all()
 
 
 app = FastAPI(title="Agentic Template UI API", version="1.0.0", lifespan=lifespan)
@@ -823,9 +821,9 @@ async def run_agent_in_background(  # noqa: PLR0912, PLR0915
         # Initialize the generator and agent
         generator = PydanticAIAgentGenerator(prompt_base_dir="src/prompts")
 
-        # Load and wrap dynamic tools using ToolFactory
+        # Load and wrap dynamic tools using ToolManager
         tools_config_path = str(WORKSPACE_ROOT / "configs" / "tools_config.yaml")
-        dynamic_tools = ToolFactory.load_from_yaml(tools_config_path)
+        dynamic_tools = ToolManager.load_local_tools(tools_config_path)
         wrapped_dynamic_tools = {
             name: make_stream_tool(func) for name, func in dynamic_tools.items()
         }

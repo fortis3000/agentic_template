@@ -1,41 +1,79 @@
 import asyncio
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import Any, ClassVar
 
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
 
-from src.mcp_integration.manager import McpConnectionManager, build_session_key
-from src.mcp_integration.server import parse_http_server_kwargs, parse_stdio_server_parameters
+from src.tools.contracts.mcp import McpToolDefinition
+from src.tools.mcp.manager import McpConnectionManager, build_session_key
+from src.tools.mcp.server import parse_http_server_kwargs, parse_stdio_server_parameters
 from src.utils.logger import get_logger
 
-if TYPE_CHECKING:
-    pass
+__all__ = ["McpServerFactory", "McpToolDefinition", "make_mcp_tool_callable"]
 
 logger = get_logger(__name__)
 
 
 def make_mcp_tool_callable(
-    config: Any, tool_name: str, description: str | None = None
+    config: Any,
+    tool_name: str,
+    description: str | None = None,
+    advertised_name: str | None = None,
+    raise_on_error: bool = False,
 ) -> Callable[..., Any]:
     """Generates an async function that connects to the MCP server and invokes the tool."""
+    name_to_use = advertised_name or tool_name
 
-    async def call_mcp_tool(**kwargs: Any) -> str:
+    async def call_mcp_tool(**kwargs: Any) -> Any:
         cfg_type = getattr(config, "type", "stdio")
-        logger.info(f"Invoking MCP tool '{tool_name}' (type: {cfg_type})...")
+        logger.info(f"Invoking MCP tool '{tool_name}' as '{name_to_use}' (type: {cfg_type})...")
         session = await McpConnectionManager.get_session(config)
         result = await session.call_tool(tool_name, kwargs)
-        text_parts = [
-            part.text
-            for part in result.content
-            if hasattr(part, "text") and isinstance(part.text, str)
-        ]
+
+        text_parts: list[str] = []
+        image_parts: list[dict[str, Any]] = []
+
+        for part in getattr(result, "content", []):
+            if hasattr(part, "text") and isinstance(part.text, str):
+                text_parts.append(part.text)
+            elif getattr(part, "type", None) == "image" or hasattr(part, "data"):
+                data = getattr(part, "data", None)
+                mime_type = getattr(part, "mimeType", None) or getattr(
+                    part, "mime_type", "image/png"
+                )
+                if data:
+                    image_parts.append({"type": "image", "data": data, "mime_type": mime_type})
+
+        is_error = getattr(result, "isError", False) is True
+        if is_error:
+            error_details = "\n".join(text_parts) if text_parts else "Unknown error occurred"
+            error_msg = f"Error: Tool '{name_to_use}' execution failed: {error_details}"
+            logger.warning(error_msg)
+
+            current_span = trace.get_current_span()
+            if current_span and current_span.is_recording():
+                current_span.set_status(Status(StatusCode.ERROR, description=error_details))
+                current_span.set_attribute("tool.is_error", True)
+
+            if raise_on_error:
+                raise RuntimeError(error_msg)
+            return error_msg
+
+        if image_parts:
+            combined_text = "\n".join(text_parts)
+            if not combined_text:
+                return {"images": image_parts}
+            return {"text": combined_text, "images": image_parts}
+
         return "\n".join(text_parts)
 
     # Set name and docstring to the MCP metadata: agent SDKs derive the advertised
     # tool name and description from these attributes.
-    call_mcp_tool.__name__ = tool_name
+    call_mcp_tool.__name__ = name_to_use
     call_mcp_tool.__doc__ = description
     return call_mcp_tool
 

@@ -9,12 +9,12 @@ This document provides complete architectural documentation for the frontend web
 The frontend application provides a modern, responsive web workspace for interacting with agents, uploading multimodal context (images & documents), inspecting tool execution logs, and viewing Arize Phoenix trace links.
 
 Key files:
-- [`frontend/src/App.svelte`](file:///Users/user/Documents/projects/agentic_template/agentic_template/frontend/src/App.svelte): Main shell layout and component orchestrator.
-- [`frontend/src/lib/agent.svelte.ts`](file:///Users/user/Documents/projects/agentic_template/agentic_template/frontend/src/lib/agent.svelte.ts): Svelte 5 reactive state controller (`$state`) for agent chat sessions, streaming tokens, and API requests.
-- [`frontend/src/lib/ChatPanel.svelte`](file:///Users/user/Documents/projects/agentic_template/agentic_template/frontend/src/lib/ChatPanel.svelte): Message list, input bar, file/image upload modal, and SSE streaming token renderer.
-- [`frontend/src/lib/Sidebar.svelte`](file:///Users/user/Documents/projects/agentic_template/agentic_template/frontend/src/lib/Sidebar.svelte): Navigation panel, session manager, and model configuration selector.
-- [`frontend/src/lib/TracePanel.svelte`](file:///Users/user/Documents/projects/agentic_template/agentic_template/frontend/src/lib/TracePanel.svelte): Live execution timeline, tool call inputs/outputs, and Arize Phoenix trace drawer link.
-- [`frontend/src/lib/FileBrowser.svelte`](file:///Users/user/Documents/projects/agentic_template/agentic_template/frontend/src/lib/FileBrowser.svelte): Workspace file upload and inspection drawer.
+- `frontend/src/App.svelte`: Main shell layout and component orchestrator.
+- `frontend/src/lib/agent.svelte.ts`: Svelte 5 reactive state controller (`$state`) for agent chat sessions, streaming tokens, and API requests.
+- `frontend/src/lib/ChatPanel.svelte`: Message list, input bar, file/image upload modal, and SSE streaming token renderer.
+- `frontend/src/lib/Sidebar.svelte`: Navigation panel, session manager, and model configuration selector.
+- `frontend/src/lib/TracePanel.svelte`: Live execution timeline, tool call inputs/outputs, and Arize Phoenix trace drawer link.
+- `frontend/src/lib/FileBrowser.svelte`: Workspace file upload and inspection drawer.
 
 ---
 

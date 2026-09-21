@@ -2,7 +2,7 @@ import uuid
 from typing import Any
 
 from src.ingestion.chunkers import fixed_chunker, markdown_chunker, semantic_chunker
-from src.tools.text_extractor import extract_text
+from src.tools.local.text_extractor import extract_text
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

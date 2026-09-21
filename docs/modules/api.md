@@ -9,14 +9,14 @@ This document provides explicit documentation for the FastAPI API server, route 
 The API module (`src/api/main.py`) acts as the entrypoint for the React frontend and external REST/SSE consumers. It manages session persistence, file/image validation & processing, backgrounds tasks, and OpenTelemetry lifespan registration.
 
 Key files:
-- [`src/api/main.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/api/main.py): FastAPI app initialization, routes, and SSE streaming handlers.
-- [`src/agents/config.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/agents/config.py): Pydantic request models and constraint specifications.
+- `src/api/main.py`: FastAPI app initialization, routes, and SSE streaming handlers.
+- `src/agents/config.py`: Pydantic request models and constraint specifications.
 
 ---
 
 ## 2. Server Lifespan & CORS
 
-- **Lifespan Manager**: On startup, initializes Arize Phoenix OpenTelemetry tracing if enabled in `agent_config.yaml` or environment variables. On shutdown, cleanly closes persistent MCP stdio connections via `McpConnectionManager.close_all()`.
+- **Lifespan Manager**: On startup, initializes Arize Phoenix OpenTelemetry tracing if enabled in `agent_config.yaml` or environment variables. On shutdown, cleanly closes persistent MCP connections and resources via `ToolManager.close_all()`.
 - **CORS Policy**: Configured to allow cross-origin requests from Vite development servers (`http://localhost:5173`).
 
 ---

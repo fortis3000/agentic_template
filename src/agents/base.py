@@ -6,13 +6,12 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Union
+from typing import Any, Self
 
 import nest_asyncio
 from pydantic import BaseModel, FilePath, model_validator
 
-if TYPE_CHECKING:
-    from src.agents.config import AgentYamlConfig
+from src.agents.contracts import AgentConfigProtocol
 
 
 class TextPart(BaseModel):
@@ -29,17 +28,17 @@ class ImagePart(BaseModel):
     mime_type: str | None = None
 
     @model_validator(mode="after")
-    def validate_has_data_or_path(self) -> "ImagePart":
+    def validate_has_data_or_path(self) -> Self:
         if self.data is None and self.path is None:
             raise ValueError("ImagePart must have either data or path defined.")
         return self
 
     @classmethod
-    def from_file(cls, path: str, mime_type: str | None = None) -> "ImagePart":
+    def from_file(cls, path: str | Path, mime_type: str | None = None) -> Self:
         return cls(path=Path(path), mime_type=mime_type)
 
     @classmethod
-    def from_bytes(cls, data: bytes, mime_type: str) -> "ImagePart":
+    def from_bytes(cls, data: bytes, mime_type: str) -> Self:
         return cls(data=data, mime_type=mime_type)
 
 
@@ -52,23 +51,23 @@ class FilePart(BaseModel):
     filename: str
 
     @model_validator(mode="after")
-    def validate_has_data_or_path(self) -> "FilePart":
+    def validate_has_data_or_path(self) -> Self:
         if self.data is None and self.path is None:
             raise ValueError("FilePart must have either data or path defined.")
         return self
 
     @classmethod
-    def from_file(cls, path: str, mime_type: str, filename: str | None = None) -> "FilePart":
+    def from_file(cls, path: str | Path, mime_type: str, filename: str | None = None) -> Self:
         p = Path(path)
         return cls(path=p, mime_type=mime_type, filename=filename or p.name)
 
     @classmethod
-    def from_bytes(cls, data: bytes, mime_type: str, filename: str) -> "FilePart":
+    def from_bytes(cls, data: bytes, mime_type: str, filename: str) -> Self:
         return cls(data=data, mime_type=mime_type, filename=filename)
 
 
 # Union type representing any valid input part to an agent.
-AgentInputPart = Union[TextPart, ImagePart, FilePart, str]
+AgentInputPart = TextPart | ImagePart | FilePart | str
 
 
 @dataclass
@@ -77,7 +76,7 @@ class ToolConfig:
 
     name: str
     description: str | None = None
-    parameters: dict | None = None
+    parameters: dict[str, Any] | None = None
 
 
 @dataclass
@@ -120,9 +119,6 @@ class BaseAgent(ABC):
             loop = None
 
         if loop and loop.is_running():
-            # If an event loop is already running, use run_coroutine_threadsafe or a wrapper
-            # But in typical script environment, we can run it.
-            # Let's run it using a clean runner or standard run.
             nest_asyncio.apply()
         return asyncio.run(self.call(inputs))
 
@@ -146,7 +142,7 @@ class BaseAgentGenerator(ABC):
     @abstractmethod
     def create_agent(
         self,
-        config: Union[str, "AgentYamlConfig"],
+        config: str | Path | AgentConfigProtocol | Any,
         system_variables: dict[str, Any] | None = None,
         tools_registry: dict[str, Any] | None = None,
         tools_config_path: str | None = None,
@@ -155,7 +151,7 @@ class BaseAgentGenerator(ABC):
         """Create and configure an agent from a configuration file or pre-loaded config.
 
         Args:
-            config: Path to the agent configuration file (e.g. YAML) or pre-loaded AgentYamlConfig.
+            config: Path to the agent configuration file (e.g. YAML) or pre-loaded config.
             system_variables: Optional variables to format the system prompt template.
             tools_registry: Optional mapping of tool names to Python callables.
             tools_config_path: Optional path to a YAML file to load tools via ToolFactory.
@@ -168,7 +164,7 @@ class BaseAgentGenerator(ABC):
 
     async def create_agent_async(
         self,
-        config: Union[str, "AgentYamlConfig"],
+        config: str | Path | AgentConfigProtocol | Any,
         system_variables: dict[str, Any] | None = None,
         tools_registry: dict[str, Any] | None = None,
         tools_config_path: str | None = None,
@@ -176,13 +172,8 @@ class BaseAgentGenerator(ABC):
     ) -> BaseAgent:
         """Create an agent without blocking the running event loop.
 
-        Agent creation can take seconds when it has to start MCP servers, which would otherwise
-        stall every other coroutine on the loop. Generators that can discover their tools
-        asynchronously should override this; the default offloads the synchronous path to a worker
-        thread so no implementation blocks the loop.
-
         Args:
-            config: Path to the agent configuration file (e.g. YAML) or pre-loaded AgentYamlConfig.
+            config: Path to the agent configuration file (e.g. YAML) or pre-loaded config.
             system_variables: Optional variables to format the system prompt template.
             tools_registry: Optional mapping of tool names to Python callables.
             tools_config_path: Optional path to a YAML file to load tools via ToolFactory.

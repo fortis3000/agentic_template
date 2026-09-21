@@ -47,7 +47,7 @@ This document provides a technical walkthrough of the core components in the Sta
 
 - **`PromptManager`**: Locates, caches, and compiles raw text templates into active prompts. Implements f-string replacements to merge system variables or session constraints dynamically before calling the model.
 
-### Text Extraction (`src/tools/text_extractor.py`)
+### Text Extraction (`src/tools/local/text_extractor.py`)
 
 - **`extract_text(data, mime_type)`**: Dispatches bytes to the appropriate extractor based on MIME type.
   - **PDF** → Page-by-page extraction via PyMuPDF (AGPL-3.0 licensed).
@@ -132,7 +132,7 @@ To support retrieval-augmented generation (RAG) and search capabilities, the cod
 - **`OllamaEmbeddingClient`**: Zero-cost local embedding generation via Ollama HTTP API (e.g. `nomic-embed-text`).
 - **Multimodal checks**: Asserts text-only embedding models are not supplied with images, raising `ValueError` on image calls.
 
-### Vector Databases (`src/tools/vectordb_base.py`, `src/tools/qdrant_db.py`)
+### Vector Databases (`src/tools/local/vectordb_base.py`, `src/tools/local/qdrant_db.py`)
 - **`BaseVectorDB`**: Abstract interface for CRUD actions on a vector space (`create_collection`, `insert`, `search`, `delete`).
 - **`QdrantVectorDB`**: Integration with Qdrant. Fully supports local memory testing via `location=":memory:"` and persistent vector storage volume via Docker.
 - **Arize Phoenix Spans**: Implements OpenInference `RETRIEVER` semantic tracing, capturing queries, retrieved document contents, similarity scores, and payload metadata automatically.
@@ -149,15 +149,29 @@ To support retrieval-augmented generation (RAG) and search capabilities, the cod
 
 ---
 
-## 9. Model Context Protocol Package (`src/mcp/`)
+## 9. Unified Tooling Engine & Model Context Protocol (`src/tools/`)
 
-- **MCP Client (`src/mcp/client.py`)**: Client session management, `McpServerFactory` for non-blocking tool fetching, and async `make_mcp_tool_callable` wrappers.
-- **MCP Connection Manager (`src/mcp/manager.py`)**: Manages persistent connection contexts (`ClientSession`) for stdio and HTTP/SSE servers to avoid subprocess overhead.
-- **MCP Server (`src/mcp/server.py`)**: Server configuration parameter parsers and schema definitions.
+The tooling subsystem is organized into a modular, two-tier architecture:
+- **Unified Tool Manager (`src/tools/manager.py`)**: Central orchestrator (`ToolManager`) that dynamically resolves local Python tools and external MCP servers, handles retries, wraps calls with OpenTelemetry tracing, and manages connection lifecycle teardown.
+- **Leaf Contracts (`src/tools/contracts/`)**: Zero-dependency protocols and dataclasses (`McpToolDefinition`, `ToolCallable`, `BaseToolProtocol`, `AgentToolConfigProtocol`).
+- **Local Tools (`src/tools/local/`)**:
+  - `BaseTool` & `ToolFactory` (`base.py`): In-process tool interface and registry.
+  - `QdrantVectorDB` (`qdrant_db.py`): Dense, sparse hybrid, and image vector operations.
+  - `TextExtractor` (`text_extractor.py`): Multi-format parser (PDF, TXT, Markdown, HTML).
+  - `VectorDBSearchTool` (`vectordb_search.py`): Semantic document search.
+  - Google Sheets (`google_sheet/`): Tabular read, write, and vocabulary operations.
+- **Model Context Protocol (`src/tools/mcp/`)**:
+  - `McpServerFactory` (`client.py`): Parallel MCP discovery, schema fetching, and async `make_mcp_tool_callable` execution wrappers.
+  - `McpConnectionManager` (`manager.py`): Persistent connection caching and session reuse.
+  - `McpServerConfigSchema` (`server.py`): Stdio and HTTP/SSE transport configuration.
+  - **Tool Name Prefixing (`tool_prefix`)**: Namespaces advertised tool names to eliminate collisions across multiple MCP servers.
+  - **Resilient Error Handling (`isError`)**: Inspects remote server error states, annotating OpenTelemetry spans and formatting self-correcting error diagnostics for the LLM (or raising via `raise_on_error`).
+  - **Multimodal Content Extraction**: Unpacks `ImageContent` into structured image payloads for vision-capable agents.
+  - **Native Pydantic AI Toolsets (`native_pydantic_toolset`)**: Direct mounting of `pydantic_ai.mcp.MCPToolset`.
 
 ---
 
-## 9. Vector Database Class Diagram
+## 10. Vector Database Class Diagram
 
 ```mermaid
 classDiagram
@@ -190,7 +204,7 @@ classDiagram
 
 ---
 
-## 10. Whitelist Tool Settings & Retry Overrides
+## 11. Whitelist Tool Settings & Retry Overrides
 
 Individual tool executions and settings can be overridden on a per-agent basis under `tool_settings` in `agent_config.yaml`:
 
@@ -207,8 +221,11 @@ agent:
       allowed_answer_fields:
         - "text"
         - "filepath"
+    fs_read_file:
+      raise_on_error: true
 ```
 
 - **`retry`**: Override default agent-level retry policies for target tools.
 - **`allowed_search_fields`**: Restricts the metadata filter fields allowed to be queried.
 - **`allowed_answer_fields`**: Restricts which document fields are included in the search response back to the LLM (e.g. only return `"text"` and hide system metadata).
+- **`raise_on_error`**: When true, causes remote MCP server error responses (`isError: true`) to raise `RuntimeError` rather than returning self-correcting error strings.

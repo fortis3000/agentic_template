@@ -10,7 +10,7 @@ from pydantic_ai.models.test import TestModel
 
 from src.agents.config import AgentYamlConfig, PhoenixConfigSchema
 from src.agents.pydantic_ai import PydanticAIAgent, PydanticAIAgentGenerator
-from src.tools.qdrant_db import QdrantVectorDB
+from src.tools import QdrantVectorDB
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

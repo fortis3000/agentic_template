@@ -7,10 +7,10 @@ This document provides documentation for shared utility packages supporting logg
 ## 1. Overview & Components
 
 Key files:
-- [`src/utils/logger.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/utils/logger.py): Structured logger factory (`get_logger`).
-- [`src/utils/retry.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/utils/retry.py): Exponential backoff retry utilities (`retry_async`, `retry_sync`).
-- [`src/utils/pr_validator.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/utils/pr_validator.py): Pull request description and commit message validator.
-- [`src/utils/google_sheets.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/utils/google_sheets.py): Google Sheets API wrapper.
+- `src/utils/logger.py`: Structured logger factory (`get_logger`).
+- `src/utils/retry.py`: Exponential backoff retry utilities (`retry_async`, `retry_sync`).
+- `src/utils/pr_validator.py`: Pull request description and commit message validator.
+- `src/utils/google_sheets.py`: Google Sheets API wrapper.
 
 ---
 

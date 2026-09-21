@@ -4,9 +4,9 @@ import pytest
 from pydantic import ValidationError
 
 from src.agents.config import EmbeddingModelConfigSchema, McpServerConfigSchema
-from src.mcp_integration import McpServerFactory
-from src.tools.qdrant_db import QdrantVectorDB, generate_sparse_vector
-from src.tools.vectordb_search import VectorDBSearchTool
+from src.tools.local.qdrant_db import QdrantVectorDB, generate_sparse_vector
+from src.tools.local.vectordb_search import VectorDBSearchTool
+from src.tools.mcp import McpServerFactory
 
 
 @pytest.fixture(autouse=True)
@@ -81,7 +81,7 @@ def test_fetch_tools_sync_non_blocking():
     )
 
     with patch(
-        "src.mcp_integration.client.McpServerFactory.fetch_tools", new_callable=AsyncMock
+        "src.tools.mcp.client.McpServerFactory.fetch_tools", new_callable=AsyncMock
     ) as mock_fetch:
         mock_fetch.return_value = [{"name": "echo_tool", "description": "echo", "input_schema": {}}]
         tools = McpServerFactory.fetch_tools_sync(config)

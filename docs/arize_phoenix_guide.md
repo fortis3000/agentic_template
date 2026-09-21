@@ -10,7 +10,7 @@ This document provides a guide for understanding, accessing, and visually naviga
 Arize Phoenix is an open-source AI observability platform that captures OpenTelemetry
 trace spans from agent executions, LLM calls, tool interactions, and vector retrievals.
 
-* **Container Service**: Defined in [`docker-compose.yml`](file:///Users/user/Documents/projects/agentic_template/agentic_template/.worktrees/issue-34/docker-compose.yml)
+* **Container Service**: Defined in `docker-compose.yml`
   under service `phoenix`.
 * **Ports**:
   * `6060:6006`: Host port 6060 maps to container port 6006 (Web UI & OTLP HTTP).
@@ -21,7 +21,7 @@ trace spans from agent executions, LLM calls, tool interactions, and vector retr
 
 ## 2. YAML-Based Phoenix Configuration
 
-Arize Phoenix parameters can be configured directly in the YAML agent configuration file (e.g., [`configs/agent_config.yaml`](file:///Users/user/Documents/projects/agentic_template/agentic_template/.worktrees/issue-34/configs/agent_config.yaml)) under a dedicated `phoenix:` top-level chapter.
+Arize Phoenix parameters can be configured directly in the YAML agent configuration file (e.g., `configs/agent_config.yaml`) under a dedicated `phoenix:` top-level chapter.
 
 ### YAML Schema Structure
 
@@ -38,7 +38,7 @@ phoenix:
 
 ### Pydantic Schema (`PhoenixConfigSchema`)
 
-Defined in [`src/agents/config.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/.worktrees/issue-34/src/agents/config.py):
+Defined in `src/agents/config.py`:
 
 | Field | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
