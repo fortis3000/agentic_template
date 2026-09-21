@@ -424,10 +424,12 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
             validated_config = config
         elif isinstance(config, AgentConfigSchema):
             validated_config = AgentYamlConfig(agent=config)
-        elif hasattr(config, "agent") and isinstance(getattr(config, "agent"), AgentConfigSchema):
-            validated_config = AgentYamlConfig(agent=config.agent)
         elif hasattr(config, "agent"):
-            validated_config = AgentYamlConfig.model_validate(config)
+            agent_attr = getattr(config, "agent")
+            if isinstance(agent_attr, AgentConfigSchema):
+                validated_config = AgentYamlConfig(agent=agent_attr)
+            else:
+                validated_config = AgentYamlConfig.model_validate(config)
         else:
             validated_config = AgentYamlConfig.model_validate(config)
 

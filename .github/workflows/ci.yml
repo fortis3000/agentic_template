@@ -63,7 +63,7 @@ jobs:
         run: npm --prefix frontend ci
 
       - name: Run type checking
-        run: uvx ty check .
+        run: uv run ty check
 
       - name: Run pre-commit checks
         run: uv run pre-commit run --all-files
