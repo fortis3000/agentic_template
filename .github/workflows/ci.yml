@@ -45,17 +45,9 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install uv
-        uses: yezz123/setup-uv@v4
+        uses: astral-sh/setup-uv@v5
         with:
-          uv-venv: ".venv"
-
-      - name: Cache uv virtualenv
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: ${{ runner.os }}-uv-${{ env.PYTHON_VERSION }}-${{ hashFiles('uv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-uv-${{ env.PYTHON_VERSION }}-
+          enable-cache: true
 
       - name: Install Python dependencies
         run: uv sync --extra all
@@ -69,6 +61,9 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm --prefix frontend ci
+
+      - name: Run type checking
+        run: uvx ty check .
 
       - name: Run pre-commit checks
         run: uv run pre-commit run --all-files
@@ -87,17 +82,9 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install uv
-        uses: yezz123/setup-uv@v4
+        uses: astral-sh/setup-uv@v5
         with:
-          uv-venv: ".venv"
-
-      - name: Cache uv virtualenv
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: ${{ runner.os }}-uv-${{ env.PYTHON_VERSION }}-${{ hashFiles('uv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-uv-${{ env.PYTHON_VERSION }}-
+          enable-cache: true
 
       - name: Validate PR Description
         run: uv run python src/utils/pr_validator.py
@@ -114,17 +101,9 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install uv
-        uses: yezz123/setup-uv@v4
+        uses: astral-sh/setup-uv@v5
         with:
-          uv-venv: ".venv"
-
-      - name: Cache uv virtualenv
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: ${{ runner.os }}-uv-${{ env.PYTHON_VERSION }}-${{ hashFiles('uv.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-uv-${{ env.PYTHON_VERSION }}-
+          enable-cache: true
 
       - name: Install dependencies
         run: uv sync --extra test
@@ -132,11 +111,11 @@ jobs:
       - name: Run tests with pytest and coverage
         run: |
           set +e
-          coverage run -m pytest -v .
+          uv run coverage run -m pytest -v .
           PYTEST_EXIT_CODE=$?
           set -e
           if [ $PYTEST_EXIT_CODE -eq 0 ]; then
-            coverage report -m --fail-under=80
+            uv run coverage report -m --fail-under=80
           elif [ $PYTEST_EXIT_CODE -eq 5 ]; then
             echo "No tests found. Skipping coverage report."
           else

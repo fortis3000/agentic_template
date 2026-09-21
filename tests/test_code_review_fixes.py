@@ -97,12 +97,14 @@ async def test_create_collection_sizes_image_vector_from_argument():
     await db.create_collection("explicit_image_dims", vector_size=8, image_vector_size=3072)
     info = await db.client.get_collection("explicit_image_dims")
     vectors = info.config.params.vectors
+    assert isinstance(vectors, dict)
     assert vectors["dense"].size == 8  # noqa: PLR2004
     assert vectors["image"].size == 3072  # noqa: PLR2004
 
     # Omitted, the image vector follows the dense size - one model embeds both modalities.
     await db.create_collection("defaulted_image_dims", vector_size=8)
     info2 = await db.client.get_collection("defaulted_image_dims")
+    assert isinstance(info2.config.params.vectors, dict)
     assert info2.config.params.vectors["image"].size == 8  # noqa: PLR2004
 
 

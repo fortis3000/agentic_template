@@ -239,7 +239,7 @@ agent:
             raise MockAPIError(503, "Unavailable")
         return MockStreamResponse()
 
-    agent.agent.run_stream = mock_run_stream
+    setattr(agent.agent, "run_stream", mock_run_stream)
     chunks = []
     async for chunk in agent.call_stream("test query"):
         chunks.append(chunk)

@@ -56,9 +56,10 @@ google-api-python-client = false
 # Formatting
 line-length = 100
 exclude = [".pytest_cache", "**/__pycache__/", "**/*.ipynb_checkpoints/", "*.ipynb"]
-# Linting
-lint.extend-select = ["F", "I", "PL", "N"]
-lint.extend-ignore = ["D", "E501", "PLR0913", "E402", "C403","F405", "E203","E731", "E712"]
+
+[tool.ruff.lint]
+extend-select = ["F", "I", "PL", "N"]
+extend-ignore = ["D", "E501", "PLR0913", "E402", "C403", "F405", "E203", "E731", "E712"]
 
 [tool.ruff.lint.isort]
 case-sensitive = true
