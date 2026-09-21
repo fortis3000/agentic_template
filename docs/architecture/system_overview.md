@@ -55,6 +55,7 @@ The primary goal of this project template is to provide a standardized, framewor
 ## 3. Core Architectural Components
 
 ### 3.1 Agents Engine (`src/agents/`)
+- **Leaf Contracts (`contracts/`)**: Domain-scoped structural protocols (`AgentConfigProtocol`, `AgentRunnerProtocol`) with zero project-internal imports.
 - **Base Interface (`base.py`)**: Abstract base class enforcing consistent `run()`, `stream()`, and prompt rendering behaviors.
 - **Pydantic AI (`pydantic_ai.py`)**: Integration with Pydantic AI framework providing strict response schemas, tool calling, and OpenTelemetry trace hooks.
 - **Tracing Module (`tracing.py`)**: Tool OpenTelemetry span instrumentation (`trace_tool`).
@@ -63,6 +64,7 @@ The primary goal of this project template is to provide a standardized, framewor
 
 ### 3.2 Tooling Engine & Tool Manager (`src/tools/`)
 - **Tool Manager (`manager.py`)**: Central orchestrator (`ToolManager`) unifying discovery, instantiation, retry wrapping, and OpenTelemetry tracing across local Python tools and external MCP servers.
+- **Leaf Contracts (`contracts/`)**: Zero-dependency protocols and dataclasses (`McpToolDefinition`, `ToolCallable`, `BaseToolProtocol`, `AgentToolConfigProtocol`).
 - **Local Tools Package (`local/`)**:
   - **Tool Standard (`local/base.py`)**: Abstract tool interface (`BaseTool`), configuration type, and registry factory (`ToolFactory`).
   - **Qdrant DB Tool (`local/qdrant_db.py`)**: In-memory and server-mode vector search tool for retrieving relevant document chunks.
@@ -70,7 +72,7 @@ The primary goal of this project template is to provide a standardized, framewor
   - **Vector Search (`local/vectordb_search.py`)**: Standalone semantic search tool interacting with vector stores.
   - **Google Sheets (`local/google_sheet/`)**: Integrations for external tabular read/write operations.
 - **MCP Subsystem (`mcp/`)**:
-  - **Stdio & SSE Client (`mcp/client.py`, `mcp/manager.py`, `mcp/server.py`)**: Connects agents to external Model Context Protocol servers to dynamically discover and execute third-party tools with persistent connection pooling.
+  - **Stdio & SSE Client (`mcp/client.py`, `mcp/manager.py`, `mcp/server.py`)**: Connects agents to external Model Context Protocol servers to dynamically discover and execute third-party tools with persistent connection pooling, tool prefixing (`tool_prefix`), resilient error handling (`isError`), multimodal content extraction, and optional native Pydantic toolset mounting (`native_pydantic_toolset`).
 
 ### 3.3 API Gateway (`src/api/`)
 - Built on **FastAPI**, serving:

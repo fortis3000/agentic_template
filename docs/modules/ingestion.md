@@ -9,9 +9,9 @@ This document provides explicit documentation for the Document Ingestion Engine,
 The ingestion pipeline converts raw unstructured documents (PDF, Markdown, HTML, TXT) into chunked, embedded vector representations indexed inside Qdrant.
 
 Key files:
-- [`src/ingestion/chunkers.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/ingestion/chunkers.py): Text chunking algorithms.
-- [`src/ingestion/helper.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/ingestion/helper.py): Document metadata extraction and payload formatting.
-- [`src/ingestion/pipeline.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/src/ingestion/pipeline.py): Pipeline execution orchestrator.
+- `src/ingestion/chunkers.py`: Text chunking algorithms.
+- `src/ingestion/helper.py`: Document metadata extraction and payload formatting.
+- `src/ingestion/pipeline.py`: Pipeline execution orchestrator.
 
 ---
 

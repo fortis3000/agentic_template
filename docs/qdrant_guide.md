@@ -9,10 +9,8 @@ the **Qdrant Vector Database** integration within this repository.
 
 Qdrant is a high-performance vector database used to store document embeddings and
 perform similarity search.
-Qdrant is a high-performance vector database used to store document embeddings
-and perform similarity search.
 
-* **Container Service**: Defined in [`docker-compose.yml`](file:///Users/user/Documents/projects/agentic_template/agentic_template/.worktrees/feat/implement-issue-37/docker-compose.yml)
+* **Container Service**: Defined in `docker-compose.yml`
   under service `qdrant`.
 * **REST & gRPC Ports**:
   * `6333`: REST API endpoint.
@@ -77,10 +75,10 @@ curl -s http://localhost:6333/collections/default_collection/points/count | jq .
 * **Unique Index Constraint**: Qdrant `SparseVector(indices=..., values=...)`
   requires `indices` to be strictly unique and sorted. Hashing words
   modulo 10000 produces index collisions if multiple words map.
-* **Deduplication Fix**: In [`src/tools/qdrant_db.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/.worktrees/feat/implement-issue-37/src/tools/qdrant_db.py),
+* **Deduplication Fix**: In `src/tools/local/qdrant_db.py`,
   word counts are aggregated by hashed integer index (`index_counts[idx] += 1.0`)
   prior to generating `SparseVector`, preventing duplicate index errors (HTTP 422).
-* **Collection Existence Fallback**: [`src/tools/vectordb_search.py`](file:///Users/user/Documents/projects/agentic_template/agentic_template/.worktrees/feat/implement-issue-37/src/tools/vectordb_search.py)
+* **Collection Existence Fallback**: `src/tools/local/vectordb_search.py`
   verifies collection existence before executing queries. If an invalid
   collection name is provided, it logs a debug message and falls back
   gracefully to `default_collection`.

@@ -8,7 +8,7 @@ Retrieval-Augmented Generation (RAG) system end-to-end.
 ## 1. System Architecture & Prerequisites
 
 The end-to-end RAG stack consists of four decoupled services defined in
-[`docker-compose.yml`](file:///Users/user/Documents/projects/agentic_template/agentic_template/.worktrees/feat/implement-issue-37/docker-compose.yml):
+`docker-compose.yml`:
 
 * **`agent-ui`** (`http://localhost:5173`): Svelte-based frontend dashboard.
 * **`agent-api`** (`http://localhost:8000`): FastAPI backend agent server.
@@ -41,7 +41,7 @@ cp docs/components.md data/rag_docs/
 
 ### Step 3: Configure and Run Ingestion Pipeline
 
-Ensure [`configs/ingestion_config.yaml`](file:///Users/user/Documents/projects/agentic_template/agentic_template/.worktrees/feat/implement-issue-37/configs/ingestion_config.yaml)
+Ensure `configs/ingestion_config.yaml`
 points to `source_directory: "data/rag_docs"` and model `gemini-embedding-001`.
 
 Execute document ingestion using the standalone ingestion pipeline:
@@ -108,7 +108,7 @@ and synthesizes a grounded answer.
 If API rate limits are reached (HTTP 429 / Resource Exhausted):
 
 * Retry logic attempts up to $N$ attempts (defined by `agent.retry.attempts` in
-  [`configs/agent_config.yaml`](file:///Users/user/Documents/projects/agentic_template/agentic_template/.worktrees/feat/implement-issue-37/configs/agent_config.yaml)).
+  `configs/agent_config.yaml`).
 * Upon reaching $N$ attempts, execution stops cleanly and records a user-friendly
   assistant message in session history:
 
