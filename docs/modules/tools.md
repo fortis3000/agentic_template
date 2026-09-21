@@ -96,10 +96,13 @@ class BaseTool(ABC):
 
 Enables agents to interact with external tools running as independent MCP servers via stdio or HTTP/SSE:
 
-- **`McpConnectionManager` (`manager.py`)**: Maintains persistent client sessions across invocations, avoiding subprocess recreation overhead.
+- **`McpConnectionManager` (`manager.py`)**: Maintains persistent client sessions across invocations, avoiding subprocess recreation overhead and AnyIO cancel-scope affinity errors.
 - **`McpServerFactory` (`client.py`)**: Connects to MCP servers, filters tools based on whitelist/blacklist (`enabled_tools` / `disabled_tools`), and caches tool discovery metadata.
-- **`make_mcp_tool_callable`**: Wraps remote MCP tool calls into asynchronous Python callables with OpenTelemetry tracing and retry support.
-- **`McpToolDefinition`**: Standard dataclass providing tool name, callable, description, and input schema.
+- **`make_mcp_tool_callable`**: Wraps remote MCP tool calls into asynchronous Python callables with OpenTelemetry tracing, error status recording, and retry support.
+- **Tool Name Prefixing (`tool_prefix`)**: Prevents tool collisions across multiple servers by prepending `{prefix}_{tool_name}` (e.g. `github_search` vs `jira_search`).
+- **Resilient Error Handling (`isError`)**: Inspects remote MCP `isError` flags, recording OpenTelemetry error status and returning self-correcting error messages to the LLM (or optionally raising via `raise_on_error: true`).
+- **Multimodal Support**: Automatically extracts `ImageContent` into structured image payloads, mapped to `BinaryContent` in vision-capable agents.
+- **Native Pydantic AI Interoperability (`native_pydantic_toolset`)**: Opt-in toggle to mount native `pydantic_ai.mcp.MCPToolset` instances for agents needing MCP sampling or deferred tool loading.
 
 ---
 
@@ -111,10 +114,9 @@ To create a new tool in a clean, maintainable, and standardized manner:
 Add a new file in `src/tools/local/` (e.g., `src/tools/local/weather_tool.py`):
 
 ```python
-from typing import Callable
+from collections.abc import Callable
 
-# Relative import ensures single registration across `tools` and `src.tools` namespaces (see pyproject.toml:99-106)
-from .base import BaseTool, ToolFactory
+from src.tools.local.base import BaseTool, ToolFactory
 
 
 @ToolFactory.register("weather_tool")
@@ -129,7 +131,7 @@ class WeatherTool(BaseTool):
         """Fetch current weather for a city."""
         return f"Weather in {city}: 22° {unit}"
 
-    def get_callable(self) -> Callable:
+    def get_callable(self) -> Callable[..., str]:
         return self.get_weather
 ```
 

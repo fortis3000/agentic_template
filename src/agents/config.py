@@ -38,6 +38,8 @@ class McpServerConfigSchema(BaseModel):
     terminate_on_close: bool = True
     enabled_tools: list[str] | None = None
     disabled_tools: list[str] | None = None
+    tool_prefix: str | None = None
+    native_pydantic_toolset: bool = False
 
 
 class EmbeddingModelConfigSchema(BaseModel):
@@ -66,6 +68,7 @@ class ToolSettingsSchema(BaseModel):
     retry: RetryConfig | None = None
     allowed_search_fields: list[str] = Field(default_factory=list)
     allowed_answer_fields: list[str] = Field(default_factory=list)
+    raise_on_error: bool = False
 
 
 class PhoenixConfigSchema(BaseModel):

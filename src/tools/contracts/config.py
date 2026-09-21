@@ -10,6 +10,9 @@ class ToolSettingsProtocol(Protocol):
     @property
     def retry(self) -> Any | None: ...
 
+    @property
+    def raise_on_error(self) -> bool | None: ...
+
 
 @runtime_checkable
 class AgentToolConfigProtocol(Protocol):

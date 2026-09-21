@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import os
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -18,6 +19,13 @@ from pydantic_ai.providers.google import GoogleProvider
 from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.tools import Tool
+
+try:
+    from pydantic_ai.mcp import MCPToolset, SSETransport, StdioTransport
+except ImportError:
+    MCPToolset: Any = None
+    SSETransport: Any = None
+    StdioTransport: Any = None
 
 from src.agents.base import AgentInputPart, BaseAgent, BaseAgentGenerator, ImagePart, TextPart
 from src.agents.config import AgentConfigSchema, AgentYamlConfig
@@ -293,12 +301,21 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
         agent_data, prompt_manager, system_prompt = self._resolve_agent_config(
             config, system_variables, **kwargs
         )
+        agnostic_servers, native_toolsets = self._partition_mcp_servers(agent_data)
         tools = ToolManager.resolve_tools_sync(
             agent_data,
+            mcp_servers=agnostic_servers,
             tools_registry=tools_registry,
             tools_config_path=tools_config_path,
         )
-        return self._finalize(agent_data, prompt_manager, system_prompt, tools, kwargs)
+        return self._finalize(
+            agent_data,
+            prompt_manager,
+            system_prompt,
+            tools,
+            kwargs,
+            toolsets=native_toolsets,
+        )
 
     async def create_agent_async(
         self,
@@ -316,12 +333,83 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
         agent_data, prompt_manager, system_prompt = self._resolve_agent_config(
             config, system_variables, **kwargs
         )
+        agnostic_servers, native_toolsets = self._partition_mcp_servers(agent_data)
         tools = await ToolManager.resolve_tools(
             agent_data,
+            mcp_servers=agnostic_servers,
             tools_registry=tools_registry,
             tools_config_path=tools_config_path,
         )
-        return self._finalize(agent_data, prompt_manager, system_prompt, tools, kwargs)
+        return self._finalize(
+            agent_data,
+            prompt_manager,
+            system_prompt,
+            tools,
+            kwargs,
+            toolsets=native_toolsets,
+        )
+
+    def _partition_mcp_servers(
+        self, agent_data: AgentConfigSchema
+    ) -> tuple[dict[str, Any], list[Any]]:
+        """Separate native Pydantic MCP toolsets from framework-agnostic MCP servers."""
+        agnostic_servers: dict[str, Any] = {}
+        native_toolsets: list[Any] = []
+        if agent_data.mcp_servers:
+            for s_name, s_cfg in agent_data.mcp_servers.items():
+                is_native = getattr(s_cfg, "native_pydantic_toolset", False)
+                if isinstance(s_cfg, dict):
+                    is_native = s_cfg.get("native_pydantic_toolset", is_native)
+                if is_native:
+                    toolset = self._build_native_mcp_toolset(s_cfg)
+                    if toolset is not None:
+                        native_toolsets.append(toolset)
+                else:
+                    agnostic_servers[s_name] = s_cfg
+        return agnostic_servers, native_toolsets
+
+    @staticmethod
+    def _build_native_mcp_toolset(s_cfg: Any) -> Any:
+        """Construct a native Pydantic AI MCPToolset instance from server configuration."""
+        if MCPToolset is None or StdioTransport is None or SSETransport is None:
+            logger.warning("pydantic_ai.mcp not available; skipping native MCP toolset.")
+            return None
+
+        cfg_type = getattr(s_cfg, "type", "stdio")
+        if isinstance(s_cfg, dict):
+            cfg_type = s_cfg.get("type", "stdio")
+
+        if cfg_type == "stdio":
+            cmd = getattr(s_cfg, "command", None) or (
+                s_cfg.get("command") if isinstance(s_cfg, dict) else None
+            )
+            args = getattr(s_cfg, "args", []) or (
+                s_cfg.get("args", []) if isinstance(s_cfg, dict) else []
+            )
+            env = getattr(s_cfg, "env", None) or (
+                s_cfg.get("env") if isinstance(s_cfg, dict) else None
+            )
+            if not cmd:
+                logger.warning("No command specified for native stdio MCP server. Skipping.")
+                return None
+            return MCPToolset(StdioTransport(command=cmd, args=args, env=env))
+        elif cfg_type in ("http", "sse"):
+            url = getattr(s_cfg, "url", None) or (
+                s_cfg.get("url") if isinstance(s_cfg, dict) else None
+            )
+            headers = getattr(s_cfg, "headers", None) or (
+                s_cfg.get("headers") if isinstance(s_cfg, dict) else None
+            )
+            timeout = getattr(s_cfg, "sse_read_timeout", None) or (
+                s_cfg.get("sse_read_timeout") if isinstance(s_cfg, dict) else None
+            )
+            if not url:
+                logger.warning("No URL specified for native HTTP/SSE MCP server. Skipping.")
+                return None
+            return MCPToolset(SSETransport(url=url, headers=headers, sse_read_timeout=timeout))
+        else:
+            logger.warning(f"Unsupported server type '{cfg_type}' for native MCP toolset.")
+            return None
 
     def _resolve_agent_config(
         self,
@@ -366,6 +454,7 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
         system_prompt: str,
         tools: list[Any],
         kwargs: dict[str, Any],
+        toolsets: list[Any] | None = None,
     ) -> BaseAgent:
         """Build the model and assemble the final PydanticAIAgent."""
         # 5. Resolve Model configuration via factory
@@ -387,9 +476,32 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
         pydantic_tools: list[Any] = []
         for tool in tools:
             if isinstance(tool, McpToolDefinition):
+                raw_callable = tool.callable
+
+                # Wrap callable to convert any base64 image dict into BinaryContent if applicable
+                async def adapted_mcp_tool(*args: Any, **tool_kwargs: Any) -> Any:
+                    res = await raw_callable(*args, **tool_kwargs)
+                    if isinstance(res, dict) and "images" in res:
+                        images = res["images"]
+                        if images and isinstance(images, list):
+                            first_img = images[0]
+                            b64_data = first_img.get("data", "")
+                            mime = first_img.get("mime_type", "image/png")
+                            try:
+                                raw_bytes = base64.b64decode(b64_data)
+                                return BinaryContent(data=raw_bytes, media_type=mime)
+                            except Exception as decode_err:
+                                logger.debug(
+                                    f"Failed to decode base64 image in MCP tool result: {decode_err}"
+                                )
+                    return res
+
+                adapted_mcp_tool.__name__ = getattr(raw_callable, "__name__", tool.name)
+                adapted_mcp_tool.__doc__ = getattr(raw_callable, "__doc__", tool.description)
+
                 pydantic_tools.append(
                     Tool.from_schema(
-                        function=tool.callable,
+                        function=adapted_mcp_tool,
                         name=tool.name,
                         description=tool.description,
                         json_schema=tool.input_schema,
@@ -403,6 +515,7 @@ class PydanticAIAgentGenerator(BaseAgentGenerator):
             model=model_instance,
             system_prompt=system_prompt if system_prompt else (),
             tools=pydantic_tools,
+            toolsets=toolsets if toolsets else (),
         )
 
         default_user_prompt_source = agent_data.user_prompt_path or agent_data.user_prompt

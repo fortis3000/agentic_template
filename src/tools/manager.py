@@ -50,10 +50,21 @@ class ToolManager:
 
     @classmethod
     def build_mcp_tool(
-        cls, config: Any, tool_name: str, description: str | None = None
+        cls,
+        config: Any,
+        tool_name: str,
+        description: str | None = None,
+        advertised_name: str | None = None,
+        raise_on_error: bool = False,
     ) -> ToolCallable:
         """Create a callable function that invokes an MCP tool on an active session."""
-        return make_mcp_tool_callable(config, tool_name, description=description)
+        return make_mcp_tool_callable(
+            config,
+            tool_name,
+            description=description,
+            advertised_name=advertised_name,
+            raise_on_error=raise_on_error,
+        )
 
     @classmethod
     async def resolve_tools(
@@ -200,6 +211,15 @@ class ToolManager:
             return tool_setting.get("retry")
         return getattr(tool_setting, "retry", None)
 
+    @staticmethod
+    def _tool_raise_on_error(settings: dict[str, Any], tool_name: str) -> bool:
+        tool_setting = settings.get(tool_name)
+        if not tool_setting:
+            return False
+        if isinstance(tool_setting, dict):
+            return bool(tool_setting.get("raise_on_error", False))
+        return bool(getattr(tool_setting, "raise_on_error", False))
+
     @classmethod
     def _resolve_local_tools(
         cls,
@@ -232,13 +252,29 @@ class ToolManager:
         effective_retry = global_retry or RetryConfig()
         for mcp_name, mcp_tools in mcp_tools_by_server.items():
             mcp_cfg = servers[mcp_name]
+            prefix = getattr(mcp_cfg, "tool_prefix", None)
+            if isinstance(mcp_cfg, dict):
+                prefix = mcp_cfg.get("tool_prefix", prefix)
+
             for tool_info in mcp_tools:
-                tool_name = tool_info["name"]
-                tool_retry = cls._tool_retry(settings, tool_name)
+                raw_name = tool_info["name"]
+                advertised_name = f"{prefix}_{raw_name}" if prefix else raw_name
+
+                # Look up settings by advertised name first, fallback to raw name
+                tool_retry = cls._tool_retry(settings, advertised_name) or cls._tool_retry(
+                    settings, raw_name
+                )
+                raise_on_error = cls._tool_raise_on_error(
+                    settings, advertised_name
+                ) or cls._tool_raise_on_error(settings, raw_name)
 
                 # Create wrapper callable and wrap it with retry
                 mcp_callable = make_mcp_tool_callable(
-                    mcp_cfg, tool_name, tool_info.get("description")
+                    mcp_cfg,
+                    raw_name,
+                    description=tool_info.get("description"),
+                    advertised_name=advertised_name,
+                    raise_on_error=raise_on_error,
                 )
                 wrapped_mcp_callable = wrap_tool_with_retry(
                     mcp_callable, effective_retry, tool_retry
@@ -250,10 +286,11 @@ class ToolManager:
                 # Framework-neutral tool descriptor
                 schema = tool_info.get("input_schema") or {}
                 mcp_tool_def = McpToolDefinition(
-                    name=tool_name,
+                    name=advertised_name,
                     callable=traced_mcp_callable,
                     description=tool_info.get("description"),
                     input_schema=schema,
+                    original_name=raw_name,
                 )
                 tools_list.append(mcp_tool_def)
 

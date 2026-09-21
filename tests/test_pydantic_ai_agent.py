@@ -1,12 +1,16 @@
+import base64
 from typing import Any, cast
+from unittest.mock import AsyncMock
 
 import pytest
 from pydantic_ai import BinaryContent
 from pydantic_ai.models.test import TestModel
 
 from src.agents.base import AgentInputPart, ImagePart, TextPart
+from src.agents.config import AgentConfigSchema, McpServerConfigSchema
 from src.agents.prompt_manager import PromptManager
 from src.agents.pydantic_ai import PydanticAIAgent, PydanticAIAgentGenerator
+from src.tools.contracts import McpToolDefinition
 from src.tools.local.base import BaseTool, ToolFactory
 
 
@@ -273,3 +277,72 @@ agent:
         tool_func = tool_func.__wrapped__
     assert callable(tool_func)
     assert cast(Any, tool_func)(5) == expected_result
+
+
+def test_pydantic_ai_native_mcp_toolset_partitioning():
+    """Verify PydanticAIAgentGenerator partitions native MCP toolsets from framework-agnostic ones."""
+    agent_data = AgentConfigSchema(
+        name="test_native_mcp_agent",
+        provider="google",
+        mcp_servers={
+            "native_server": McpServerConfigSchema(
+                type="stdio",
+                command="echo",
+                args=["native"],
+                native_pydantic_toolset=True,
+            ),
+            "standard_server": McpServerConfigSchema(
+                type="stdio",
+                command="echo",
+                args=["standard"],
+                native_pydantic_toolset=False,
+            ),
+        },
+    )
+
+    generator = PydanticAIAgentGenerator()
+    agnostic, native_toolsets = generator._partition_mcp_servers(agent_data)
+
+    assert "standard_server" in agnostic
+    assert "native_server" not in agnostic
+    assert len(native_toolsets) == 1
+    assert native_toolsets[0].__class__.__name__ == "MCPToolset"
+
+
+@pytest.mark.asyncio
+async def test_pydantic_ai_mcp_multimodal_adapter():
+    """Verify PydanticAIAgent adapts MCP tool multimodal image responses into BinaryContent."""
+    raw_bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+    b64_str = base64.b64encode(raw_bytes).decode("ascii")
+
+    mock_callable = AsyncMock(
+        return_value={"text": "chart", "images": [{"data": b64_str, "mime_type": "image/png"}]}
+    )
+    tool_def = McpToolDefinition(
+        name="chart_tool",
+        callable=mock_callable,
+        description="Generates a chart",
+        input_schema={"type": "object"},
+    )
+
+    generator = PydanticAIAgentGenerator()
+    agent_data = AgentConfigSchema(name="chart_agent", provider="google")
+    agent = cast(
+        PydanticAIAgent,
+        generator._finalize(
+            agent_data=agent_data,
+            prompt_manager=PromptManager(),
+            system_prompt="",
+            tools=[tool_def],
+            kwargs={},
+        ),
+    )
+
+    assert len(agent.agent._function_toolset.tools) == 1
+    tool_entry = agent.agent._function_toolset.tools["chart_tool"]
+    adapted_func: Any = tool_entry.function
+
+    res = await adapted_func()
+    assert isinstance(res, BinaryContent)
+    assert res.data == raw_bytes
+    assert res.media_type == "image/png"

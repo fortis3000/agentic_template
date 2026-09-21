@@ -13,3 +13,4 @@ class McpToolDefinition:
     callable: Callable[..., Any]
     description: str | None = None
     input_schema: dict[str, Any] = field(default_factory=dict)
+    original_name: str | None = None

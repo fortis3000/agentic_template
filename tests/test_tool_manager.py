@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -11,13 +11,14 @@ from src.tools.contracts import (
 from src.tools.local.base import BaseTool, ToolFactory
 from src.tools.local.vectordb_base import VectorDBFactory
 from src.tools.manager import ToolManager
-from src.tools.mcp.client import McpServerFactory
+from src.tools.mcp.client import McpServerFactory, make_mcp_tool_callable
 from src.tools.mcp.manager import McpConnectionManager
 from src.utils.retry import RetryConfig
 
 EXPECTED_ASYNC_RESOLVED_COUNT = 3
 EXPECTED_SYNC_RESOLVED_COUNT = 2
 EXPECTED_PARALLEL_RESOLVED_COUNT = 4
+EXPECTED_PREFIXED_RESOLVED_COUNT = 2
 
 
 @pytest.fixture(autouse=True)
@@ -241,3 +242,111 @@ def test_tool_contracts_and_protocol_structure():
     tool_def = McpToolDefinition(name="echo", callable=lambda: "hello")
     assert tool_def.name == "echo"
     assert tool_def.callable() == "hello"
+
+
+def test_tool_manager_mcp_tool_name_prefixing():
+    """Verify two MCP servers exposing identical tool names are properly prefixed."""
+    agent_config = AgentConfigSchema(
+        name="prefixed_agent",
+        provider="google",
+        mcp_servers={
+            "github": McpServerConfigSchema(type="stdio", command="npx", tool_prefix="github"),
+            "jira": McpServerConfigSchema(type="stdio", command="npx", tool_prefix="jira"),
+        },
+    )
+    server_tools = {
+        "github": [{"name": "search", "description": "GitHub search", "input_schema": {}}],
+        "jira": [{"name": "search", "description": "Jira search", "input_schema": {}}],
+    }
+
+    def fake_fetch_sync(cfg):
+        if cfg.tool_prefix == "github":
+            return server_tools["github"]
+        return server_tools["jira"]
+
+    with patch.object(McpServerFactory, "fetch_tools_sync", side_effect=fake_fetch_sync):
+        resolved = ToolManager.resolve_tools_sync(agent_config)
+
+    assert len(resolved) == EXPECTED_PREFIXED_RESOLVED_COUNT
+    tool_names = [t.name for t in resolved]
+    assert "github_search" in tool_names
+    assert "jira_search" in tool_names
+
+    gh_tool = next(t for t in resolved if t.name == "github_search")
+    assert gh_tool.original_name == "search"
+    assert gh_tool.name == "github_search"
+
+
+@pytest.mark.asyncio
+async def test_mcp_tool_is_error_handling():
+    """Verify MCP tool returning isError=True returns formatted error message."""
+    cfg = McpServerConfigSchema(type="stdio", command="echo")
+    mock_part = MagicMock()
+    mock_part.text = "Permission denied to access resource"
+    mock_result = MagicMock()
+    mock_result.isError = True
+    mock_result.content = [mock_part]
+
+    mock_session = AsyncMock()
+    mock_session.call_tool = AsyncMock(return_value=mock_result)
+
+    with patch.object(McpConnectionManager, "get_session", AsyncMock(return_value=mock_session)):
+        callable_tool = make_mcp_tool_callable(
+            cfg, "delete_item", advertised_name="prefixed_delete"
+        )
+        res = await callable_tool(item_id=123)
+
+        assert (
+            "Error: Tool 'prefixed_delete' execution failed: Permission denied to access resource"
+            in res
+        )
+
+
+@pytest.mark.asyncio
+async def test_mcp_tool_raise_on_error():
+    """Verify MCP tool returning isError=True raises RuntimeError when raise_on_error is True."""
+    cfg = McpServerConfigSchema(type="stdio", command="echo")
+    mock_part = MagicMock()
+    mock_part.text = "Database connection timed out"
+    mock_result = MagicMock()
+    mock_result.isError = True
+    mock_result.content = [mock_part]
+
+    mock_session = AsyncMock()
+    mock_session.call_tool = AsyncMock(return_value=mock_result)
+
+    with patch.object(McpConnectionManager, "get_session", AsyncMock(return_value=mock_session)):
+        callable_tool = make_mcp_tool_callable(cfg, "query_db", raise_on_error=True)
+        with pytest.raises(
+            RuntimeError,
+            match="Tool 'query_db' execution failed: Database connection timed out",
+        ):
+            await callable_tool()
+
+
+@pytest.mark.asyncio
+async def test_mcp_tool_multimodal_image_extraction():
+    """Verify MCP tool returning ImageContent extracts image data and mime type."""
+    cfg = McpServerConfigSchema(type="stdio", command="echo")
+    text_part = MagicMock()
+    text_part.text = "Here is the chart:"
+    img_part = MagicMock()
+    img_part.type = "image"
+    img_part.data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    img_part.mimeType = "image/png"
+    mock_result = MagicMock()
+    mock_result.isError = False
+    mock_result.content = [text_part, img_part]
+
+    mock_session = AsyncMock()
+    mock_session.call_tool = AsyncMock(return_value=mock_result)
+
+    with patch.object(McpConnectionManager, "get_session", AsyncMock(return_value=mock_session)):
+        callable_tool = make_mcp_tool_callable(cfg, "generate_chart")
+        res = await callable_tool()
+
+        assert isinstance(res, dict)
+        assert res["text"] == "Here is the chart:"
+        assert len(res["images"]) == 1
+        assert res["images"][0]["data"] == img_part.data
+        assert res["images"][0]["mime_type"] == "image/png"
