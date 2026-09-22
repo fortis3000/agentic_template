@@ -7,14 +7,9 @@ containerized VectorDB MCP microservice using httpx2.
 from collections.abc import Callable
 from typing import Any
 
-try:
-    import httpx2
+import httpx2
 
-    _ASYNC_CLIENT_CLS = httpx2.AsyncClient
-except ImportError:
-    import httpx
-
-    _ASYNC_CLIENT_CLS = httpx.AsyncClient
+_ASYNC_CLIENT_CLS = httpx2.AsyncClient
 
 from src.agents.config import McpServerConfigSchema
 from src.tools.local.base import BaseTool, ToolFactory

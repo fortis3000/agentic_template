@@ -26,6 +26,12 @@ Key modules:
 - **Concurrency & Re-use**: Multiple tool executions reuse active sessions without AnyIO cancel-scope affinity errors.
 - **Teardown**: `close_all()` gracefully terminates all open client sessions, subprocesses, and background reader tasks during application shutdown.
 
+### 2.1 HTTP/SSE Transport & `httpx2` Convention
+All remote HTTP/SSE connections in the MCP subsystem are standardized on `httpx2` (`httpcore2`):
+- `create_mcp_http_client` configures `httpx2.AsyncClient(follow_redirects=True)`.
+- When upstream `mcp.client.sse` passes external `httpx.Timeout` instances, `create_mcp_http_client` automatically adapts them into native `httpx2.Timeout` structures to prevent AnyIO timing errors.
+- Application code across the repository must strictly use `httpx2` directly (`import httpx2`) and avoid importing `httpx`.
+
 ---
 
 ## 3. Tool Discovery, Caching & Namespacing

@@ -2,18 +2,11 @@
 
 from typing import TYPE_CHECKING, Any
 
+import httpx2
 from mcp import StdioServerParameters
 
-try:
-    import httpx2
-
-    _ASYNC_HTTP_CLIENT_CLS = httpx2.AsyncClient
-    _HTTP_TIMEOUT_CLS = httpx2.Timeout
-except ImportError:
-    import httpx
-
-    _ASYNC_HTTP_CLIENT_CLS = httpx.AsyncClient
-    _HTTP_TIMEOUT_CLS = httpx.Timeout
+_ASYNC_HTTP_CLIENT_CLS = httpx2.AsyncClient
+_HTTP_TIMEOUT_CLS = httpx2.Timeout
 
 if TYPE_CHECKING:
     pass
@@ -38,7 +31,7 @@ def create_mcp_http_client(
     timeout: Any = None,
     auth: Any = None,
 ) -> Any:
-    """Create an async HTTP client for MCP SSE communication using httpx2 (with httpx fallback)."""
+    """Create an async HTTP client for MCP SSE communication using httpx2."""
     kwargs: dict[str, Any] = {"follow_redirects": True}
     if headers is not None:
         kwargs["headers"] = headers

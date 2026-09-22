@@ -48,6 +48,10 @@
 - **Leaf Contracts Architecture**:
   - Store protocols, DTOs, and interface definitions in dedicated leaf `contracts/` subpackages (e.g. `src/tools/contracts/`, `src/agents/contracts/`).
   - Leaf contract modules MUST have **zero internal project imports** (importing only from standard library) to eliminate circular dependencies and ensure clean dependency inversion.
+- **HTTP Client Convention**:
+  - Always use `httpx2` directly for all internal HTTP clients, API integrations, and MCP SSE client connections (`import httpx2`).
+  - Do NOT import `httpx` in application code (third-party SDKs like Google GenAI, Qdrant Client, and MCP manage their own internal `httpx` dependencies).
+  - Use `httpx2.AsyncClient` and `httpx2.Timeout` directly.
 - Follow existing typing patterns; avoid introducing new style/tooling unless required.
 - Don't reformat unrelated code.
 - **Semantic Commits**: Always use semantic commit messages following the Conventional Commits specification.
