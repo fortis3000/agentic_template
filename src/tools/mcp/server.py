@@ -8,10 +8,12 @@ try:
     import httpx2
 
     _ASYNC_HTTP_CLIENT_CLS = httpx2.AsyncClient
+    _HTTP_TIMEOUT_CLS = httpx2.Timeout
 except ImportError:
     import httpx
 
     _ASYNC_HTTP_CLIENT_CLS = httpx.AsyncClient
+    _HTTP_TIMEOUT_CLS = httpx.Timeout
 
 if TYPE_CHECKING:
     pass
@@ -41,6 +43,17 @@ def create_mcp_http_client(
     if headers is not None:
         kwargs["headers"] = headers
     if timeout is not None:
+        if (
+            _HTTP_TIMEOUT_CLS is not None
+            and hasattr(timeout, "connect")
+            and hasattr(timeout, "read")
+        ):
+            timeout = _HTTP_TIMEOUT_CLS(
+                connect=getattr(timeout, "connect", None),
+                read=getattr(timeout, "read", None),
+                write=getattr(timeout, "write", None),
+                pool=getattr(timeout, "pool", None),
+            )
         kwargs["timeout"] = timeout
     if auth is not None:
         kwargs["auth"] = auth

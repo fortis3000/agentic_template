@@ -2,14 +2,16 @@ import base64
 import json
 import uuid
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from starlette.testclient import TestClient
 
+from src.agents.config import McpServerConfigSchema
 from src.agents.embeddings import BaseEmbeddingClient, EmbeddingResponse
 from src.tools.local.vectordb_base import BaseVectorDB
 from src.tools.local.vectordb_mcp import VectorDBMcpTool
+from src.tools.mcp.server import create_mcp_http_client, parse_http_server_kwargs
 from src.tools.mcp.servers.vectordb import (
     _extract_image_bytes_and_mime,
     create_vectordb_mcp_server,
@@ -302,7 +304,7 @@ async def test_vectordb_store_empty_text(mock_db, mock_embed_client):
 
 @pytest.mark.asyncio
 async def test_vectordb_mcp_tool_callable():
-    """Test VectorDBMcpTool callable creation and healthcheck."""
+    """Test VectorDBMcpTool callable creation."""
     tool = VectorDBMcpTool(
         url="http://localhost:8001/sse",
         tool_name="vectordb_search",
@@ -311,3 +313,113 @@ async def test_vectordb_mcp_tool_callable():
     fn = tool.get_callable()
     assert callable(fn)
     assert getattr(fn, "__name__", "") == "search_vectordb_mcp"
+
+
+def test_create_mcp_http_client_timeout_conversion():
+    """Verify create_mcp_http_client converts timeout objects properly for httpx2."""
+    expected_connect = 5.0
+    expected_read = 15.0
+
+    class MockForeignTimeout:
+        def __init__(self):
+            self.connect = expected_connect
+            self.read = expected_read
+            self.write = expected_connect
+            self.pool = expected_connect
+
+    client = create_mcp_http_client(
+        headers={"X-Test": "1"},
+        timeout=MockForeignTimeout(),
+    )
+    assert client.timeout.connect == expected_connect
+    assert client.timeout.read == expected_read
+    assert client.headers.get("X-Test") == "1"
+
+
+def test_parse_http_server_kwargs():
+    """Verify parse_http_server_kwargs extracts parameters accurately."""
+    expected_timeout = 25.0
+    expected_sse_timeout = 60.0
+    cfg = McpServerConfigSchema(
+        type="http",
+        url="http://localhost:8001/sse",
+        headers={"Authorization": "Bearer test"},
+        timeout=expected_timeout,
+        sse_read_timeout=expected_sse_timeout,
+    )
+    kwargs = parse_http_server_kwargs(cfg)
+    assert kwargs["url"] == "http://localhost:8001/sse"
+    assert kwargs["headers"] == {"Authorization": "Bearer test"}
+    assert kwargs["timeout"] == expected_timeout
+    assert kwargs["sse_read_timeout"] == expected_sse_timeout
+    assert callable(kwargs["httpx_client_factory"])
+
+
+@pytest.mark.asyncio
+async def test_vectordb_mcp_tool_check_health():
+    """Verify VectorDBMcpTool.check_health queries the /healthz endpoint."""
+    tool = VectorDBMcpTool(url="http://localhost:8001/sse")
+    mock_resp = MagicMock()
+    mock_resp.json.return_value = {"status": "healthy", "service": "vectordb-mcp"}
+
+    mock_client = AsyncMock()
+    mock_client.get.return_value = mock_resp
+    mock_client.__aenter__.return_value = mock_client
+    mock_client.__aexit__.return_value = None
+
+    with patch("src.tools.local.vectordb_mcp._ASYNC_CLIENT_CLS", return_value=mock_client):
+        res = await tool.check_health()
+        assert res["status"] == "healthy"
+        mock_client.get.assert_awaited_once_with("http://localhost:8001/healthz")
+
+
+@pytest.mark.asyncio
+async def test_vectordb_mcp_tool_execution():
+    """Verify VectorDBMcpTool callable executes tool call on session."""
+    tool = VectorDBMcpTool(url="http://localhost:8001/sse", collection_name="test_coll")
+    fn = tool.get_callable()
+
+    mock_session = AsyncMock()
+    mock_content_part = MagicMock()
+    mock_content_part.text = '[{"id": "doc-1", "score": 0.99}]'
+    mock_result = MagicMock()
+    mock_result.isError = False
+    mock_result.content = [mock_content_part]
+    mock_session.call_tool.return_value = mock_result
+
+    with patch(
+        "src.tools.mcp.manager.McpConnectionManager.get_session",
+        AsyncMock(return_value=mock_session),
+    ):
+        res = await fn(query_text="query", limit=3)
+        assert '[{"id": "doc-1", "score": 0.99}]' in res
+        mock_session.call_tool.assert_awaited_once_with(
+            "vectordb_search",
+            arguments={
+                "query_text": "query",
+                "filter_dict": None,
+                "search_type": "dense",
+                "limit": 3,
+                "collection_name": "test_coll",
+            },
+        )
+
+
+@pytest.mark.asyncio
+async def test_vectordb_mcp_tool_execution_error():
+    """Verify VectorDBMcpTool callable raises RuntimeError on tool error."""
+    tool = VectorDBMcpTool(url="http://localhost:8001/sse")
+    fn = tool.get_callable()
+
+    mock_session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.isError = True
+    mock_result.content = "Internal error"
+    mock_session.call_tool.return_value = mock_result
+
+    with patch(
+        "src.tools.mcp.manager.McpConnectionManager.get_session",
+        AsyncMock(return_value=mock_session),
+    ):
+        with pytest.raises(RuntimeError, match="VectorDB MCP Error"):
+            await fn(query_text="query")
