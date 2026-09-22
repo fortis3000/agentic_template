@@ -25,6 +25,7 @@ from src.tools.local.text_extractor import (
     extract_text,
 )
 from src.tools.local.vectordb_base import BaseVectorDB, VectorDBFactory
+from src.tools.local.vectordb_mcp import VectorDBMcpTool
 from src.tools.local.vectordb_search import VectorDBSearchTool
 from src.tools.manager import ToolManager
 from src.tools.mcp.client import (
@@ -58,6 +59,7 @@ __all__ = [
     "MIME_TEXT",
     "QdrantVectorDB",
     "SUPPORTED_MIME_TYPES",
+    "VectorDBMcpTool",
     "VectorDBSearchTool",
     "extract_text",
     "generate_sparse_vector",

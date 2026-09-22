@@ -64,15 +64,17 @@ services:
       context: .
       dockerfile: docker/Dockerfile.vectordb_mcp
     ports:
-      - "8001:8000"
+      - "127.0.0.1:8001:8000"
     environment:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
       - DEFAULT_COLLECTION_NAME=default_collection
       - EMBEDDING_PROVIDER=google
       - EMBEDDING_MODEL=gemini-embedding-001
+      - EMBEDDING_IMAGE_MODEL=multimodal-embedding-001
       - EMBEDDING_DIMENSIONS=3072
       - EMBEDDING_IMAGE_DIMENSIONS=3072
+      - ALLOWED_IMAGE_DIR=/app/data
       - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006/v1/traces
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
@@ -86,10 +88,11 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
-      interval: 5s
+      interval: 10s
       timeout: 2s
-      retries: 5
+      retries: 3
       start_period: 5s
+
 
 volumes:
   qdrant_data:

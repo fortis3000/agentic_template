@@ -8,13 +8,15 @@ import pytest
 from starlette.testclient import TestClient
 
 from src.agents.embeddings import BaseEmbeddingClient, EmbeddingResponse
-from src.tools.local.qdrant_db import QdrantVectorDB
+from src.tools.local.vectordb_base import BaseVectorDB
+from src.tools.local.vectordb_mcp import VectorDBMcpTool
 from src.tools.mcp.servers.vectordb import (
     _extract_image_bytes_and_mime,
     create_vectordb_mcp_server,
 )
 
 EXPECTED_HTTP_OK = 200
+EXPECTED_HTTP_UNAVAILABLE = 503
 EXPECTED_SCORE = 0.95
 DEFAULT_TEST_LIMIT = 3
 MOCK_DIMENSIONS = 4
@@ -53,9 +55,9 @@ def mock_embed_client():
 
 @pytest.fixture
 def mock_db():
-    db = MagicMock(spec=QdrantVectorDB)
-    db.client = AsyncMock()
-    db.client.collection_exists = AsyncMock(return_value=True)
+    db = MagicMock(spec=BaseVectorDB)
+    db.collection_exists = AsyncMock(return_value=True)
+    db.health_check = AsyncMock(return_value={"status": "connected", "collections": ["test_coll"]})
     db.create_collection = AsyncMock()
     db.insert = AsyncMock()
     db.search = AsyncMock(
@@ -70,35 +72,55 @@ def mock_db():
     return db
 
 
-def test_extract_image_bytes_and_mime_data_url():
+@pytest.mark.asyncio
+async def test_extract_image_bytes_and_mime_data_url():
     """Test extracting image bytes from a data URL."""
     sample_bytes = b"fake-image-bytes-png"
     b64_str = base64.b64encode(sample_bytes).decode("utf-8")
     data_url = f"data:image/png;base64,{b64_str}"
 
-    extracted_bytes, mime = _extract_image_bytes_and_mime(data_url)
+    extracted_bytes, mime = await _extract_image_bytes_and_mime(data_url)
     assert extracted_bytes == sample_bytes
     assert mime == "image/png"
 
 
-def test_extract_image_bytes_and_mime_local_file(tmp_path):
-    """Test extracting image bytes from a local file path."""
+@pytest.mark.asyncio
+async def test_extract_image_bytes_and_mime_local_file(tmp_path, monkeypatch):
+    """Test extracting image bytes from an allowed local file path."""
+    monkeypatch.setenv("ALLOWED_IMAGE_DIR", str(tmp_path))
     img_file = tmp_path / "test.jpg"
     img_file.write_bytes(b"jpeg-content")
 
-    extracted_bytes, mime = _extract_image_bytes_and_mime(str(img_file))
+    extracted_bytes, mime = await _extract_image_bytes_and_mime(str(img_file))
     assert extracted_bytes == b"jpeg-content"
     assert mime == "image/jpeg"
 
 
-def test_extract_image_bytes_invalid():
+@pytest.mark.asyncio
+async def test_extract_image_bytes_path_traversal_blocked(tmp_path, monkeypatch):
+    """Test that arbitrary file path outside ALLOWED_IMAGE_DIR is strictly blocked."""
+    allowed_dir = tmp_path / "allowed"
+    allowed_dir.mkdir()
+    secret_dir = tmp_path / "secret"
+    secret_dir.mkdir()
+    secret_file = secret_dir / "secret.env"
+    secret_file.write_text("SECRET=123")
+
+    monkeypatch.setenv("ALLOWED_IMAGE_DIR", str(allowed_dir))
+
+    with pytest.raises(ValueError, match="outside allowed directory"):
+        await _extract_image_bytes_and_mime(str(secret_file))
+
+
+@pytest.mark.asyncio
+async def test_extract_image_bytes_invalid():
     """Test that invalid image string raises ValueError."""
-    with pytest.raises(ValueError, match="is neither an existing file path nor a valid Base64"):
-        _extract_image_bytes_and_mime("non_existent_file_and_not_base64")
+    with pytest.raises(ValueError, match="is neither an accessible file in"):
+        await _extract_image_bytes_and_mime("non_existent_file_and_not_base64")
 
 
-def test_healthz_endpoint(mock_db, mock_embed_client):
-    """Test that /healthz route responds with status 200 and ok JSON."""
+def test_healthz_endpoint_healthy(mock_db, mock_embed_client):
+    """Test that /healthz responds with HTTP 200 when Qdrant is connected."""
     mcp_server = create_vectordb_mcp_server(
         db=mock_db,
         embed_client=mock_embed_client,
@@ -108,8 +130,27 @@ def test_healthz_endpoint(mock_db, mock_embed_client):
     response = client.get("/healthz")
     assert response.status_code == EXPECTED_HTTP_OK
     data = response.json()
-    assert data["status"] == "ok"
+    assert data["status"] == "healthy"
     assert data["service"] == "vectordb-mcp"
+    assert data["qdrant"]["status"] == "connected"
+
+
+def test_healthz_endpoint_unhealthy(mock_db, mock_embed_client):
+    """Test that /healthz responds with HTTP 503 when Qdrant connection fails."""
+    mock_db.health_check = AsyncMock(
+        return_value={"status": "error", "error": "Connection refused"}
+    )
+    mcp_server = create_vectordb_mcp_server(
+        db=mock_db,
+        embed_client=mock_embed_client,
+        default_collection="test_coll",
+    )
+    client = TestClient(mcp_server.sse_app())
+    response = client.get("/healthz")
+    assert response.status_code == EXPECTED_HTTP_UNAVAILABLE
+    data = response.json()
+    assert data["status"] == "unhealthy"
+    assert "error" in data
 
 
 def _get_tool_text(result: Any) -> str:
@@ -217,6 +258,9 @@ async def test_vectordb_store_deterministic_id(mock_db, mock_embed_client):
     assert insert_kwargs["ids"] == [expected_id]
     assert insert_kwargs["payloads"][0]["text"] == text_content
     assert insert_kwargs["payloads"][0]["author"] == "engineer"
+    # Verify sparse vector contract
+    assert "sparse_indices" in insert_kwargs["payloads"][0]
+    assert "sparse_values" in insert_kwargs["payloads"][0]
 
 
 @pytest.mark.asyncio
@@ -254,3 +298,16 @@ async def test_vectordb_store_empty_text(mock_db, mock_embed_client):
             "vectordb_store",
             {"text": "   "},
         )
+
+
+@pytest.mark.asyncio
+async def test_vectordb_mcp_tool_callable():
+    """Test VectorDBMcpTool callable creation and healthcheck."""
+    tool = VectorDBMcpTool(
+        url="http://localhost:8001/sse",
+        tool_name="vectordb_search",
+        collection_name="test_coll",
+    )
+    fn = tool.get_callable()
+    assert callable(fn)
+    assert getattr(fn, "__name__", "") == "search_vectordb_mcp"

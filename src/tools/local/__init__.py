@@ -17,6 +17,7 @@ from src.tools.local.text_extractor import (
     extract_text,
 )
 from src.tools.local.vectordb_base import BaseVectorDB, VectorDBFactory
+from src.tools.local.vectordb_mcp import VectorDBMcpTool
 from src.tools.local.vectordb_search import VectorDBSearchTool
 
 __all__ = [
@@ -34,6 +35,7 @@ __all__ = [
     "ToolConfigType",
     "ToolFactory",
     "VectorDBFactory",
+    "VectorDBMcpTool",
     "VectorDBSearchTool",
     "extract_text",
     "generate_sparse_vector",

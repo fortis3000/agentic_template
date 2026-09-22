@@ -39,3 +39,10 @@ tools:
         port: 6333
       allowed_search_fields: ["filepath", "chunk_index"]
       allowed_answer_fields: ["text", "filepath", "chunk_index"]
+  vectordb_mcp_search:
+    type: "vectordb_mcp"
+    config:
+      url: "http://localhost:8001/sse"
+      tool_name: "vectordb_search"
+      collection_name: "default_collection"
+      timeout: 30.0
