@@ -9,7 +9,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-09-07T18:43:55.392554Z"
+exclude-newer = "2026-09-08T05:15:27.999763Z"
 exclude-newer-span = "P14D"
 
 [options.exclude-newer-package]
@@ -24,6 +24,7 @@ dependencies = [
     { name = "arize-phoenix" },
     { name = "google-api-python-client" },
     { name = "google-auth" },
+    { name = "httpx2" },
     { name = "nest-asyncio" },
     { name = "pillow" },
     { name = "pydantic-ai" },
@@ -76,6 +77,7 @@ requires-dist = [
     { name = "bandit", marker = "extra == 'lint'", specifier = ">=1.8.0" },
     { name = "google-api-python-client", specifier = ">=2.197.0" },
     { name = "google-auth", specifier = ">=2.55.0" },
+    { name = "httpx2", specifier = ">=2.7.0" },
     { name = "jupyter", marker = "extra == 'dev'" },
     { name = "mutmut", marker = "extra == 'test'", specifier = ">=3.6.0" },
     { name = "nest-asyncio" },

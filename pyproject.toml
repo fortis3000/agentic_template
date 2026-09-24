@@ -19,6 +19,7 @@ dependencies = [
     # NOTE: PyMuPDF is licensed under AGPL-3.0. See https://pymupdf.readthedocs.io/en/latest/about.html#license
     "pymupdf>=1.24.0",
     "qdrant-client>=1.18.0",
+    "httpx2>=2.7.0",
 ]
 
 [project.optional-dependencies]

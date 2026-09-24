@@ -41,8 +41,20 @@ class BaseVectorDB(ABC):
         limit: int = 5,
         filter_dict: dict[str, Any] | None = None,
         query_text: str | None = None,
+        search_type: str = "dense",
+        allowed_answer_fields: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Search for vectors similar to the query vector."""
+        pass
+
+    @abstractmethod
+    async def collection_exists(self, collection_name: str) -> bool:
+        """Check if a collection exists in the vector database."""
+        pass
+
+    @abstractmethod
+    async def health_check(self) -> dict[str, Any]:
+        """Perform a connectivity health check against the vector database."""
         pass
 
     @abstractmethod

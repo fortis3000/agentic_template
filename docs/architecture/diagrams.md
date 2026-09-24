@@ -197,3 +197,47 @@ graph TD
     RetryTracer --> Desc
     Desc -->|Return Callables & Descriptors| AgentGen
 ```
+
+---
+
+## 6. VectorDB MCP Microservice Architecture
+
+```mermaid
+graph TD
+    subgraph HostCompose["Docker Compose Network"]
+        subgraph AgentApp["agent-api (:8000)"]
+            AgentRuntime["Pydantic AI Agent Engine"]
+            McpClient["MCP SSE Client / McpConnectionManager"]
+        end
+
+        subgraph VectorDBService["vectordb-mcp (:8000 -> host :8001)"]
+            FastMCPApp["FastMCP ASGI Application (vectordb.py)"]
+            Healthz["/healthz Endpoint"]
+            SearchTool["Tool: vectordb_search"]
+            StoreTool["Tool: vectordb_store"]
+            Embeddings["EmbeddingModelFactory<br/>(Gemini / OpenAI / Ollama)"]
+            UUIDGen["UUIDv5 Content Hasher"]
+        end
+
+        subgraph QdrantService["qdrant (:6333)"]
+            QdrantEngine[("Qdrant Vector Engine<br/>Dense + Sparse BM25")]
+        end
+
+        subgraph PhoenixService["phoenix (:6006)"]
+            OTelCollector["Arize Phoenix OTel Collector"]
+        end
+    end
+
+    AgentRuntime --> McpClient
+    McpClient -->|HTTP/SSE /sse| FastMCPApp
+    FastMCPApp --> SearchTool
+    FastMCPApp --> StoreTool
+    FastMCPApp --> Healthz
+    StoreTool --> UUIDGen
+    SearchTool --> Embeddings
+    StoreTool --> Embeddings
+    SearchTool -->|Async Qdrant Client| QdrantEngine
+    StoreTool -->|Async Qdrant Client| QdrantEngine
+    FastMCPApp -.->|Retriever Traces :6006| OTelCollector
+```
+

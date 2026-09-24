@@ -298,3 +298,24 @@ class QdrantVectorDB(BaseVectorDB):
                 points_selector=PointIdsList(points=cast(Any, ids)),
             )
             logger.info(f"Deleted points {ids} from collection '{collection_name}'.")
+
+    async def collection_exists(self, collection_name: str) -> bool:
+        """Check if a collection exists in Qdrant."""
+        if hasattr(self.client, "collection_exists"):
+            return await self.client.collection_exists(collection_name=collection_name)
+        try:
+            await self.client.get_collection(collection_name=collection_name)
+            return True
+        except Exception:
+            return False
+
+    async def health_check(self) -> dict[str, Any]:
+        """Perform a connectivity health check against Qdrant."""
+        try:
+            if hasattr(self.client, "get_collections"):
+                cols = await self.client.get_collections()
+                names = [c.name for c in cols.collections] if hasattr(cols, "collections") else []
+                return {"status": "connected", "collections": names}
+            return {"status": "connected"}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}

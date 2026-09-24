@@ -2,7 +2,11 @@
 
 from typing import TYPE_CHECKING, Any
 
+import httpx2
 from mcp import StdioServerParameters
+
+_ASYNC_HTTP_CLIENT_CLS = httpx2.AsyncClient
+_HTTP_TIMEOUT_CLS = httpx2.Timeout
 
 if TYPE_CHECKING:
     pass
@@ -22,15 +26,48 @@ def parse_stdio_server_parameters(config: Any) -> StdioServerParameters:
     )
 
 
+def create_mcp_http_client(
+    headers: dict[str, str] | None = None,
+    timeout: Any = None,
+    auth: Any = None,
+) -> Any:
+    """Create an async HTTP client for MCP SSE communication using httpx2."""
+    kwargs: dict[str, Any] = {"follow_redirects": True}
+    if headers is not None:
+        kwargs["headers"] = headers
+    if timeout is not None:
+        if (
+            _HTTP_TIMEOUT_CLS is not None
+            and hasattr(timeout, "connect")
+            and hasattr(timeout, "read")
+        ):
+            timeout = _HTTP_TIMEOUT_CLS(
+                connect=getattr(timeout, "connect", None),
+                read=getattr(timeout, "read", None),
+                write=getattr(timeout, "write", None),
+                pool=getattr(timeout, "pool", None),
+            )
+        kwargs["timeout"] = timeout
+    if auth is not None:
+        kwargs["auth"] = auth
+    return _ASYNC_HTTP_CLIENT_CLS(**kwargs)
+
+
 def parse_http_server_kwargs(config: Any) -> dict[str, Any]:
-    """Extract HTTP / SSE client connection parameters."""
+    """Extract HTTP / SSE client connection parameters using httpx2."""
     url = getattr(config, "url", None)
     headers = getattr(config, "headers", None)
     timeout = getattr(config, "timeout", None)
+    sse_read_timeout = getattr(config, "sse_read_timeout", None)
     if not url:
         raise ValueError("url must be specified for http MCP server connection")
-    return {
+    res: dict[str, Any] = {
         "url": url,
         "headers": headers,
-        "timeout": timeout,
+        "httpx_client_factory": create_mcp_http_client,
     }
+    if timeout is not None:
+        res["timeout"] = timeout
+    if sse_read_timeout is not None:
+        res["sse_read_timeout"] = sse_read_timeout
+    return res

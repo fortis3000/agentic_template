@@ -3,7 +3,7 @@ import os
 from abc import ABC, abstractmethod
 from typing import Any, cast
 
-import httpx
+import httpx2
 from google import genai
 from google.genai import types
 from openai import AsyncOpenAI
@@ -257,7 +257,7 @@ class OllamaEmbeddingClient(BaseEmbeddingClient):
                 "Ollama embedding client does not support 'text' input based on config."
             )
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx2.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{self.base_url}/api/embeddings",
                 json={

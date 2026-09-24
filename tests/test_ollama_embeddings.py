@@ -18,12 +18,12 @@ async def test_ollama_embedding_client():
     client = EmbeddingModelFactory.create(cfg)
     assert isinstance(client, OllamaEmbeddingClient)
 
-    # Mock httpx response
+    # Mock httpx2 response
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {"embedding": [0.5, 0.6, 0.7]}
 
-    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+    with patch("httpx2.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_post.return_value = mock_response
         res = await client.embed_text("hello test")
         assert res.embedding == [0.5, 0.6, 0.7]
@@ -47,7 +47,7 @@ async def test_ollama_embedding_client():
         supported_data_types=["text"],
     )
     client_bad = EmbeddingModelFactory.create(cfg_bad_dims)
-    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+    with patch("httpx2.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_post.return_value = mock_response
         with pytest.raises(ValueError, match="does not match the configured dimensions"):
             await client_bad.embed_text("hello test")
