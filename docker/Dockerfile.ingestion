@@ -1,0 +1,29 @@
+# Build context: project root (run with `docker build -f docker/Dockerfile.ingestion .`)
+FROM python:3.13-slim
+
+WORKDIR /app
+
+# Create non-root user and group for least privilege security
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
+
+# Install uv from the official image
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+# Install dependencies first (cached unless pyproject.toml/uv.lock change)
+COPY pyproject.toml uv.lock ./
+RUN uv sync --locked --no-dev
+
+# Copy source code and data directory with proper ownership
+COPY src/ ./src/
+RUN mkdir -p /app/data /app/data/source_docs && chown -R appuser:appuser /app
+
+# Activate the virtual environment by default
+ENV PATH="/app/.venv/bin:$PATH" \
+    STATE_DB_PATH="/app/data/ingestion_state.db" \
+    SOURCE_DOCS_DIR="/app/data/source_docs"
+
+USER appuser
+
+EXPOSE 8002
+
+CMD ["uvicorn", "src.ingestion.service:app", "--host", "0.0.0.0", "--port", "8002"]
