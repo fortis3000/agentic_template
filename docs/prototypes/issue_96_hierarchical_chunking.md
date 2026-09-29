@@ -20,14 +20,14 @@ This prototype resolves **Issue #96** (part of Wayfinder Map #90) evaluating:
 * **Baseline**: Code blocks (```` ```...``` ````) and Markdown tables (`| ... |`) are masked with atomic tokens and preserved as indivisible leaf chunks (`is_atomic_block=True`) whenever $\text{size} \le \text{max\_atomic\_size}$.
 * **Adaptive Fallback When Exceeding Context Window**:
   1. **Markdown Tables (Header-Preserving Row Chunking)**:
-     - The column header row and separator (`| Col A | Col B | \n | --- | --- |`) are extracted.
-     - The table is partitioned across multiple sub-chunks by rows.
-     - The header row is automatically repeated at the top of each sub-chunk table.
-     - *Result*: Every chunk remains a valid, syntactically complete Markdown table that fits comfortably within the embedding token window without losing column definitions.
+     * The column header row and separator (`| Col A | Col B | \n | --- | --- |`) are extracted.
+     * The table is partitioned across multiple sub-chunks by rows.
+     * The header row is automatically repeated at the top of each sub-chunk table.
+     * *Result*: Every chunk remains a valid, syntactically complete Markdown table that fits comfortably within the embedding token window without losing column definitions.
   2. **Code Blocks (Syntax-Bounded Fenced Chunking)**:
-     - Large code files are split across logical function/class boundaries or line breaks.
-     - Every sub-chunk is re-wrapped in the language fence (```` ```python ... ``` ````) with a `# (continued from previous chunk)` comment header.
-     - *Result*: No broken syntax or unclosed code fences.
+     * Large code files are split across logical function/class boundaries or line breaks.
+     * Every sub-chunk is re-wrapped in the language fence (```` ```python ... ``` ````) with a `# (continued from previous chunk)` comment header.
+     * *Result*: No broken syntax or unclosed code fences.
 
 ### 3. Multipage Article Assembly (Issue #60)
 * **Decision**: **Ruled Out of Scope** for the initial ingestion service release.

@@ -1,7 +1,6 @@
 import base64
 import shutil
 
-import pymupdf
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -24,6 +23,7 @@ def client():
 
 
 def create_test_pdf(text: str = "Dummy PDF", num_pages: int = 1) -> bytes:
+    pymupdf = pytest.importorskip("pymupdf")
     doc = pymupdf.open()
     for i in range(num_pages):
         page = doc.new_page()

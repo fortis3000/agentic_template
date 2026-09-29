@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from .schemas import IngestJobDTO, IngestJobResponse, JobProgress
+from .schemas import IngestJobDTO, JobProgress
 from .types import JobAction, JobStage, JobStatus
 
 
@@ -16,7 +16,13 @@ from .types import JobAction, JobStage, JobStatus
 class JobQueueProtocol(Protocol):
     """Protocol for enqueueing, leasing, heartbeating, and updating ingestion jobs."""
 
-    def enqueue(self, filepath: str, collection_name: str, action: JobAction) -> int:
+    def enqueue(
+        self,
+        filepath: str,
+        collection_name: str,
+        action: JobAction,
+        options: dict[str, str | int | float | bool] | None = None,
+    ) -> int:
         """Enqueues a new job and returns its integer ID."""
         ...
 
@@ -30,24 +36,26 @@ class JobQueueProtocol(Protocol):
         """Extends the lease expiration timestamp for an active job."""
         ...
 
-    def update_progress(self, job_id: int, stage: JobStage, progress: JobProgress) -> bool:
-        """Updates the active stage and quantitative progress metrics."""
+    def update_progress(
+        self, job_id: int, worker_id: str, stage: JobStage, progress: JobProgress
+    ) -> bool:
+        """Updates the active stage and quantitative progress metrics with lease fencing."""
         ...
 
-    def complete_job(self, job_id: int) -> bool:
-        """Marks a job as COMPLETED."""
+    def complete_job(self, job_id: int, worker_id: str) -> bool:
+        """Marks a job as COMPLETED with worker lease fencing."""
         ...
 
-    def fail_job(self, job_id: int, error: str) -> bool:
-        """Marks a job as FAILED with an error message."""
+    def fail_job(self, job_id: int, worker_id: str, error: str) -> bool:
+        """Marks a job as FAILED with an error message and worker lease fencing."""
         ...
 
     def cancel_job(self, job_id: int) -> bool:
         """Cancels a pending or running job."""
         ...
 
-    def get_job(self, job_id: int) -> IngestJobResponse | None:
-        """Fetches public response representation of a job."""
+    def get_job(self, job_id: int) -> IngestJobDTO | None:
+        """Fetches the internal DTO representation of a job."""
         ...
 
     def list_jobs(
@@ -55,8 +63,8 @@ class JobQueueProtocol(Protocol):
         collection_name: str | None = None,
         status: JobStatus | None = None,
         limit: int = 50,
-    ) -> list[IngestJobResponse]:
-        """Lists jobs matching optional filters."""
+    ) -> list[IngestJobDTO]:
+        """Lists job DTOs matching optional filters."""
         ...
 
     def recover_stale_leases(self, max_retries: int = 3) -> int:

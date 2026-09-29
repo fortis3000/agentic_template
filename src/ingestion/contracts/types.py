@@ -20,19 +20,21 @@ class JobStatus(StrEnum):
 
 
 class JobStage(StrEnum):
-    """Active processing phase within an ingestion job."""
+    """Active processing phase of a running ingestion job (per CONTEXT.md)."""
 
-    QUEUED = "QUEUED"
     EXTRACTING = "EXTRACTING"
     CHUNKING = "CHUNKING"
     EMBEDDING = "EMBEDDING"
     INDEXING = "INDEXING"
-    DONE = "DONE"
 
 
 class JobAction(StrEnum):
     """Action associated with the file in an ingestion job."""
 
+    ADD = "ADD"
+    UPDATE = "UPDATE"
+    DELETE = "DELETE"
+    # Backwards-compatible aliases
     NEW = "NEW"
     MODIFIED = "MODIFIED"
     DELETED = "DELETED"
@@ -45,6 +47,13 @@ class DeltaAction(StrEnum):
     UPDATE = "UPDATE"
     DELETE = "DELETE"
     UNCHANGED = "UNCHANGED"
+
+
+DELTA_TO_JOB_ACTION: dict[DeltaAction, JobAction] = {
+    DeltaAction.ADD: JobAction.ADD,
+    DeltaAction.UPDATE: JobAction.UPDATE,
+    DeltaAction.DELETE: JobAction.DELETE,
+}
 
 
 class ChunkingStrategy(StrEnum):

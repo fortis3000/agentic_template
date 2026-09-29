@@ -1,7 +1,7 @@
 """SQLite-backed Delta Synchronization Engine for Document Ingestion.
 
-Implements DeltaSyncEngineProtocol to track document hashes, detect changes
-(NEW, MODIFIED, DELETED), and identify orphaned vector point IDs.
+Tracks document hashes, detects changes (ADD, UPDATE, DELETE, UNCHANGED),
+and identifies orphaned vector point IDs with directory-scoped tracking.
 """
 
 from __future__ import annotations
@@ -10,10 +10,10 @@ import hashlib
 import json
 import os
 import sqlite3
+from typing import TypedDict
 
 from src.ingestion.contracts import (
     DeltaAction,
-    DeltaSyncEngineProtocol,
     DeltaSyncResult,
     FileDelta,
 )
@@ -22,10 +22,16 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-class SQLiteDeltaEngine(DeltaSyncEngineProtocol):
+class StoredRecord(TypedDict):
+    hash: str
+    last_modified: float
+    chunk_ids: list[str]
+
+
+class SQLiteDeltaEngine:
     """Tracks document synchronization state using an embedded SQLite database."""
 
-    def __init__(self, db_path: str = "data/ingestion_state.db") -> None:
+    def __init__(self, db_path: str = "data/service_ingestion_state.db") -> None:
         self.db_path = db_path
         db_dir = os.path.dirname(db_path)
         if db_dir:
@@ -72,15 +78,21 @@ class SQLiteDeltaEngine(DeltaSyncEngineProtocol):
                 deltas=[],
             )
 
+        real_source_dir = os.path.realpath(source_directory)
+        normalized_exts = {
+            ext.lower() if ext.startswith(".") else f".{ext.lower()}" for ext in file_types
+        }
+
         cursor = self.conn.cursor()
         cursor.execute(
-            "SELECT filepath, hash, chunk_ids FROM files WHERE collection_name = ?",
+            "SELECT filepath, hash, chunk_ids, last_modified FROM files WHERE collection_name = ?",
             (collection_name,),
         )
-        stored_records = {
-            row["filepath"]: {
-                "hash": row["hash"],
-                "chunk_ids": json.loads(row["chunk_ids"] or "[]"),
+        stored_records: dict[str, StoredRecord] = {
+            os.path.realpath(row["filepath"]): {
+                "hash": str(row["hash"]),
+                "last_modified": float(row["last_modified"] or 0.0),
+                "chunk_ids": list(json.loads(row["chunk_ids"] or "[]")),
             }
             for row in cursor.fetchall()
         }
@@ -88,15 +100,17 @@ class SQLiteDeltaEngine(DeltaSyncEngineProtocol):
         disk_files: set[str] = set()
         deltas: list[FileDelta] = []
 
-        for root, _, files in os.walk(source_directory):
+        for root, _, files in os.walk(real_source_dir):
             for file in files:
-                if any(file.endswith(ext) for ext in file_types):
-                    full_path = os.path.join(root, file)
+                file_ext = os.path.splitext(file)[1].lower()
+                if file_ext in normalized_exts:
+                    full_path = os.path.realpath(os.path.join(root, file))
                     disk_files.add(full_path)
-                    current_hash = self._calculate_file_sha256(full_path)
                     mtime = os.path.getmtime(full_path)
 
-                    if full_path not in stored_records:
+                    stored_info = stored_records.get(full_path)
+                    if stored_info is None:
+                        current_hash = self._calculate_file_sha256(full_path)
                         deltas.append(
                             FileDelta(
                                 filepath=full_path,
@@ -108,34 +122,47 @@ class SQLiteDeltaEngine(DeltaSyncEngineProtocol):
                                 existing_chunk_ids=[],
                             )
                         )
-                    elif stored_records[full_path]["hash"] != current_hash:
-                        deltas.append(
-                            FileDelta(
-                                filepath=full_path,
-                                collection_name=collection_name,
-                                action=DeltaAction.UPDATE,
-                                current_hash=current_hash,
-                                stored_hash=stored_records[full_path]["hash"],
-                                last_modified=mtime,
-                                existing_chunk_ids=stored_records[full_path]["chunk_ids"],
-                            )
-                        )
                     else:
-                        deltas.append(
-                            FileDelta(
-                                filepath=full_path,
-                                collection_name=collection_name,
-                                action=DeltaAction.UNCHANGED,
-                                current_hash=current_hash,
-                                stored_hash=current_hash,
-                                last_modified=mtime,
-                                existing_chunk_ids=stored_records[full_path]["chunk_ids"],
-                            )
+                        # Fast path: check mtime before computing SHA-256
+                        current_hash: str = (
+                            stored_info["hash"]
+                            if stored_info["last_modified"] == mtime
+                            else self._calculate_file_sha256(full_path)
                         )
 
-        # Check for deleted files (in SQLite, missing on disk)
+                        if stored_info["hash"] != current_hash:
+                            deltas.append(
+                                FileDelta(
+                                    filepath=full_path,
+                                    collection_name=collection_name,
+                                    action=DeltaAction.UPDATE,
+                                    current_hash=current_hash,
+                                    stored_hash=stored_info["hash"],
+                                    last_modified=mtime,
+                                    existing_chunk_ids=stored_info["chunk_ids"],
+                                )
+                            )
+                        else:
+                            deltas.append(
+                                FileDelta(
+                                    filepath=full_path,
+                                    collection_name=collection_name,
+                                    action=DeltaAction.UNCHANGED,
+                                    current_hash=current_hash,
+                                    stored_hash=current_hash,
+                                    last_modified=mtime,
+                                    existing_chunk_ids=stored_info["chunk_ids"],
+                                )
+                            )
+
+        # Check for deleted files: strictly scoped to paths under real_source_dir matching file_types
+        source_dir_prefix = real_source_dir + os.sep
         for stored_path, data in stored_records.items():
-            if stored_path not in disk_files:
+            is_under_source = (
+                stored_path.startswith(source_dir_prefix) or stored_path == real_source_dir
+            )
+            ext = os.path.splitext(stored_path)[1].lower()
+            if is_under_source and ext in normalized_exts and stored_path not in disk_files:
                 deltas.append(
                     FileDelta(
                         filepath=stored_path,
@@ -163,20 +190,22 @@ class SQLiteDeltaEngine(DeltaSyncEngineProtocol):
         last_modified: float,
         chunk_ids: list[str],
     ) -> None:
+        real_path = os.path.realpath(filepath)
         with self.conn:
             self.conn.execute(
                 """
                 INSERT OR REPLACE INTO files (filepath, collection_name, last_modified, hash, chunk_ids)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                (filepath, collection_name, last_modified, file_hash, json.dumps(chunk_ids)),
+                (real_path, collection_name, last_modified, file_hash, json.dumps(chunk_ids)),
             )
 
     def get_existing_chunk_ids(self, filepath: str, collection_name: str) -> list[str]:
+        real_path = os.path.realpath(filepath)
         cursor = self.conn.cursor()
         cursor.execute(
             "SELECT chunk_ids FROM files WHERE filepath = ? AND collection_name = ?",
-            (filepath, collection_name),
+            (real_path, collection_name),
         )
         row = cursor.fetchone()
         if row and row["chunk_ids"]:
@@ -184,10 +213,11 @@ class SQLiteDeltaEngine(DeltaSyncEngineProtocol):
         return []
 
     def remove_file_record(self, filepath: str, collection_name: str) -> list[str]:
-        chunk_ids = self.get_existing_chunk_ids(filepath, collection_name)
+        real_path = os.path.realpath(filepath)
+        chunk_ids = self.get_existing_chunk_ids(real_path, collection_name)
         with self.conn:
             self.conn.execute(
                 "DELETE FROM files WHERE filepath = ? AND collection_name = ?",
-                (filepath, collection_name),
+                (real_path, collection_name),
             )
         return chunk_ids

@@ -78,9 +78,9 @@ flowchart TD
 ```
 
 ### 3.1 Pinned Runtime Components
-* **PDFium**: `native-v7988` (PDFium 153.0.7988.0) — High-performance, memory-safe PDF rendering engine (Apache-2.0 / BSD).
-* **ONNX Runtime**: `v1.27.0` — High-efficiency neural inference engine (MIT).
-* **Model Set**: `PP-OCRv6 Small` (revision `oar-ocr-v0.7.0` from `GreatV/oar-ocr`, Apache-2.0) consisting of 3 artifacts totaling ~31 MB:
+- **PDFium**: `native-v7988` (PDFium 153.0.7988.0) — High-performance, memory-safe PDF rendering engine (Apache-2.0 / BSD).
+- **ONNX Runtime**: `v1.27.0` — High-efficiency neural inference engine (MIT).
+- **Model Set**: `PP-OCRv6 Small` (revision `oar-ocr-v0.7.0` from `GreatV/oar-ocr`, Apache-2.0) consisting of 3 artifacts totaling ~31 MB:
   - `det.onnx`: DBNet-based text detection model.
   - `rec.onnx`: SVTR/CRNN-based text recognition model.
   - `keys.txt`: Character mapping dictionary.
@@ -159,12 +159,12 @@ flowchart TD
 ## 5. Architectural Modules & Specifications
 
 ### 5.1 Standalone `pdf-inspector-service` (`docker/Dockerfile.pdf_inspector`)
-* **Base Image**: Debian-slim or Alpine with Rust toolchain.
-* **Pre-bundled Dependencies**:
+- **Base Image**: Debian-slim or Alpine with Rust toolchain.
+- **Pre-bundled Dependencies**:
   - `libpdfium.so` (`native-v7988`)
   - `libonnxruntime.so` (`v1.27.0`)
   - `PP-OCRv6 Small` models baked into `/models/pp-ocrv6-small`
-* **Exposed Endpoints**:
+- **Exposed Endpoints**:
   - `POST /inspect`: Returns `{ "classification": "TextBased|Scanned|Mixed", "pages": [...] }` in <30ms.
   - `POST /convert`: Converts PDF bytes to Markdown with detect-then-route, returns `{ "markdown": "...", "pages_recommending_hosted": [...] }`.
   - `POST /render`: Renders specific pages to PNG bytes at 150–200 DPI for multimodal vector indexing.
@@ -173,8 +173,8 @@ flowchart TD
 
 ### 5.2 Leaf Contracts (`src/ingestion/contracts/`)
 Per repo guidelines, leaf contracts reside in `src/ingestion/contracts/` with **zero internal project imports**:
-* `src/ingestion/contracts/types.py`: Enums (`PageClassification`, `PdfIngestionMode`, `JobStatus`, `ChunkingStrategy`).
-* `src/ingestion/contracts/schemas.py`: DTOs (`IngestedChunk`, `InspectionResult`, `JobResponse`, `IngestRequest`).
+- `src/ingestion/contracts/types.py`: Enums (`PageClassification`, `PdfIngestionMode`, `JobStatus`, `ChunkingStrategy`).
+- `src/ingestion/contracts/schemas.py`: DTOs (`IngestedChunk`, `InspectionResult`, `JobResponse`, `IngestRequest`).
 
 ---
 
@@ -198,9 +198,9 @@ Reconstructs articles spanning multiple pages:
 ---
 
 ### 5.5 Delta Synchronization Engine (`src/ingestion/delta.py`)
-* **State DB**: SQLite (`data/ingestion_state.db`) tracking file hashes, mtimes, and vector point IDs.
-* **Orphan Purging**: Deletes stale chunk IDs from Qdrant when source documents are edited or deleted.
-* **Deterministic IDs**: `uuid5(NAMESPACE_DNS, f"{filepath}:{chunk_index}:{chunk_hash}")`.
+- **State DB**: SQLite (`data/ingestion_state.db`) tracking file hashes, mtimes, and vector point IDs.
+- **Orphan Purging**: Deletes stale chunk IDs from Qdrant when source documents are edited or deleted.
+- **Deterministic IDs**: `uuid5(NAMESPACE_DNS, f"{filepath}:{chunk_index}:{chunk_hash}")`.
 
 ---
 

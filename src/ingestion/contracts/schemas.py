@@ -7,7 +7,6 @@ clean dependency inversion and zero circular dependencies.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 
 from .types import (
     ChunkingStrategy,
@@ -29,6 +28,27 @@ class JobProgress:
     chunks_indexed: int = 0
     total_chunks: int = 0
 
+    def to_dict(self) -> dict[str, int]:
+        """Serializes progress counters to a dictionary."""
+        return {
+            "pages_processed": self.pages_processed,
+            "total_pages": self.total_pages,
+            "chunks_indexed": self.chunks_indexed,
+            "total_chunks": self.total_chunks,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, int] | None) -> JobProgress:
+        """Constructs JobProgress from a dictionary."""
+        if not data:
+            return cls()
+        return cls(
+            pages_processed=data.get("pages_processed", 0),
+            total_pages=data.get("total_pages", 0),
+            chunks_indexed=data.get("chunks_indexed", 0),
+            total_chunks=data.get("total_chunks", 0),
+        )
+
 
 @dataclass
 class IngestJobDTO:
@@ -39,8 +59,9 @@ class IngestJobDTO:
     collection_name: str
     action: JobAction
     status: JobStatus
-    stage: JobStage
+    stage: JobStage | None = None
     progress: JobProgress = field(default_factory=JobProgress)
+    options: dict[str, str | int | float | bool] = field(default_factory=dict)
     worker_id: str | None = None
     lease_expires_at: float | None = None
     retry_count: int = 0
@@ -58,10 +79,11 @@ class IngestJobResponse:
     collection_name: str
     action: str
     status: str
-    stage: str
+    stage: str | None
     progress: dict[str, int]
     retry_count: int
     created_at: float
+    options: dict[str, str | int | float | bool] = field(default_factory=dict)
     completed_at: float | None = None
     error: str | None = None
 
@@ -158,7 +180,7 @@ class IngestedChunkPayload:
     source_file: str
     page_number: int | None
     text: str
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, str | int | float | bool | list[str] | None] = field(default_factory=dict)
 
 
 @dataclass
