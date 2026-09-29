@@ -93,6 +93,34 @@ services:
       retries: 3
       start_period: 5s
 
+  ingestion-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ingestion
+    ports:
+      - "127.0.0.1:8002:8002"
+    environment:
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - STATE_DB_PATH=/app/data/service_ingestion_state.db
+      - SOURCE_DOCS_DIR=/app/data/source_docs
+      - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006/v1/traces
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      qdrant:
+        condition: service_started
+      phoenix:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/healthz')"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+      start_period: 5s
 
 volumes:
   qdrant_data:

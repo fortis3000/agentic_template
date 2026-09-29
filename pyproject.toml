@@ -16,13 +16,18 @@ dependencies = [
     "pyyaml",
     "nest-asyncio",
     "pillow>=10.0.0",
-    # NOTE: PyMuPDF is licensed under AGPL-3.0. See https://pymupdf.readthedocs.io/en/latest/about.html#license
-    "pymupdf>=1.24.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+    "python-multipart>=0.0.12",
     "qdrant-client>=1.18.0",
     "httpx2>=2.7.0",
 ]
 
 [project.optional-dependencies]
+pdf = [
+    # NOTE: PyMuPDF is licensed under AGPL-3.0. See https://pymupdf.readthedocs.io/en/latest/about.html#license
+    "pymupdf>=1.24.0",
+]
 lint = [
     "ruff==0.14.2",
     "bandit>=1.8.0",
@@ -43,7 +48,7 @@ dev = [
     "jupyter",
 ]
 all = [
-    "agentic_template[lint,test,dev]",
+    "agentic_template[lint,test,dev,pdf]",
 ]
 
 [tool.uv]

@@ -39,21 +39,32 @@ state_db_path: "data/ingestion_state.db"  # Path to SQLite state database
 
 ---
 
-## 3. Ingestion Job Queue & Delta Updates
+## 3. Ingestion Job Queue & Asynchronous Worker Architecture
 
-Delta tracking operates using the SQLite tables `files` and `ingest_jobs`:
+The ingestion microservice uses an in-process persistent SQLite queue (operating in WAL mode) with an asynchronous worker pool, abstracted behind a clean `JobQueue` protocol:
 
-* **`files` table**: Tracks the synchronization state of files.
+* **`files` table**: Tracks synchronization state of files.
   * Fields: `filepath`, `collection_name`, `last_modified`, `hash` (SHA-256), `chunk_ids` (JSON list).
-* **`ingest_jobs` table**: Tracks pending actions to process.
-  * Fields: `id`, `filepath`, `collection_name`, `action` (`NEW` / `MODIFIED` / `DELETED`), `status` (`PENDING` / `RUNNING` / `COMPLETED` / `FAILED`), `created_at`, `completed_at`, `error`.
+* **`ingest_jobs` table**: Tracks durable job state, lease heartbeats, and progress metrics.
+  * Fields: `id`, `filepath`, `collection_name`, `action` (`NEW` / `MODIFIED` / `DELETED`), `status` (`PENDING` / `RUNNING` / `COMPLETED` / `FAILED` / `CANCELLED`), `stage` (`QUEUED` / `EXTRACTING` / `CHUNKING` / `EMBEDDING` / `INDEXING` / `DONE`), `progress` (JSON with `pages_processed`, `total_pages`, `chunks_indexed`, `total_chunks`), `worker_id`, `lease_expires_at`, `retry_count`, `created_at`, `completed_at`, `error`.
 
-### Syncing Logic
-* **New File**: Extracted, chunked into pieces, embedded via `EmbeddingModelClient`, and uploaded. Its deterministic chunk IDs (generated using `uuid.uuid5` namespace based on filepath and chunk index) are recorded.
-* **Modified File**: The pipeline first retrieves the old `chunk_ids` from SQLite and deletes them from Qdrant. Then, it chunks, embeds, and uploads the new content and updates the SQLite record.
-* **Deleted File**: Retrieves old `chunk_ids`, deletes them from Qdrant, and deletes the record from SQLite.
+### Worker Concurrency & Crash Recovery
+* **Bounded Concurrency**: Workers process jobs concurrently up to a configurable semaphore limit (`max_concurrent_jobs`, default 2-4).
+* **Lease Heartbeats & Startup Sweep**: When a worker leases a job, it sets `lease_expires_at` and renews it periodically. On service startup, a recovery sweep claims any orphaned `RUNNING` jobs with expired leases and safely resets them to `PENDING` (incrementing `retry_count` up to 3).
+* **Idempotent Ingestion**: Reprocessing a job safely deletes existing chunks before inserting updated vectors, preventing duplicate or orphaned chunks.
+* **Job Cancellation & Retention**: Clients can cancel active jobs (`POST /jobs/{id}/cancel`). Completed, failed, or cancelled jobs are retained for 7 days before automated pruning.
+
+### Rate Limiting & Chunk Batching
+* **Token-Bucket Rate Limiter**: Enforces requests-per-minute (RPM) and tokens-per-minute (TPM) limits across all concurrent workers for external LLM/embedding APIs (Google Gemini).
+* **Chunk Batching**: Extracted chunks are grouped into batches (e.g. 100 chunks per request) before submitting to vector embedding endpoints, minimizing network roundtrips.
+
+### Job Status Reporting (REST-Only)
+* **`GET /jobs/{id}`**: Returns current `status`, active `stage`, quantitative `progress` metrics, and timing/error details.
+* **`GET /jobs`**: Lists jobs filtered by `collection_name`, `status`, or time window.
+* **`POST /jobs/{id}/cancel`**: Terminates pending or running ingestion work for the specified job.
 
 ---
+
 
 ## 4. Architecture Flow
 
@@ -154,3 +165,77 @@ Ingestion is completely decoupled from the chatbot `/chat` request handler. File
   * Splits on layout tags/headers (`#`, `##`, `<div>`). Ensures structural sections remain intact, improving the context quality.
 * **Semantic distance chunker**:
   * Computes similarity between consecutive sentences using the embedding model and splits when distance exceeds a threshold. Provides the highest context relevance, but is computationally expensive as it requires embedding calls during chunking.
+
+### Room for Improvement & Future Evolution
+
+#### 1. Distributed Queue via Redis + Celery / ARQ (per #57)
+While the current architecture adopts an in-process SQLite-backed queue for single-node simplicity and zero extra container footprint (see ADR-0001), high-throughput multi-node deployments can evolve the queue backend:
+* The `JobQueue` protocol in `src/ingestion/contracts/` separates queue semantics from storage.
+* As document ingestion volume scales beyond a single container, an external distributed broker (`Redis` with `Celery` or `ARQ`) can be plugged in to coordinate a distributed pool of worker containers without requiring changes to the ingestion microservice REST APIs or delta sync logic.
+
+#### 2. Real-Time Event Streaming (Server-Sent Events & WebSockets)
+The microservice exposes canonical REST-only endpoints (`GET /jobs/{id}`) for status and progress polling (see ADR-0002). For future client applications requiring real-time, push-based updates:
+* **Server-Sent Events (SSE)**: Can be added via `GET /jobs/{id}/events` to stream progress events (`EXTRACTING`, `CHUNKING`, `EMBEDDING`, `INDEXING`) directly to browsers and agent clients using standard unidirectional HTTP without polling overhead.
+* **WebSockets**: Can be adopted at `/ws/jobs` if bidirectional communication or interactive cancellation/pause controls over a persistent connection are needed.
+
+---
+
+## 8. REST API Endpoints & Leaf Contracts (Issue #97)
+
+The dedicated ingestion microservice provides canonical REST API schemas and protocols defined in `src/ingestion/contracts/` (with zero internal project imports):
+
+### REST Endpoints
+* **`POST /ingest/file`**: Upload document bytes (PDF, TXT, MD, HTML) with configurable chunking strategy (`hierarchical`, `fixed`, `semantic`) and PDF extraction tier (`tier1_native`, `tier2_onnx_ocr`, `tier3_cloud_vlm`). Returns `job_id` and initial queue status.
+* **`POST /ingest/sync`**: Trigger directory delta synchronization. Scans files, computes SHA-256 hashes against SQLite state DB, queues `ADD`, `UPDATE`, and `DELETE` jobs, and prunes orphaned Qdrant points.
+* **`POST /collections`**: Create and configure Qdrant vector collections with target embedding dimensions, distance metrics (`Cosine`, `Euclid`, `Dot`), and scalar quantization settings.
+* **`GET /jobs/{job_id}`**: Poll real-time lifecycle status (`PENDING`, `RUNNING`, `COMPLETED`, `FAILED`, `CANCELLED`), active processing stage (`QUEUED`, `EXTRACTING`, `CHUNKING`, `EMBEDDING`, `INDEXING`, `DONE`), and quantitative progress counters.
+* **`GET /jobs`**: List jobs filtered by `collection_name`, `status`, and limit.
+* **`POST /jobs/{job_id}/cancel`**: Safely abort pending or running jobs.
+
+### Direct AsyncQdrantClient Integration (ADR-0004)
+The microservice connects directly to Qdrant via `AsyncQdrantClient` rather than routing through MCP tools:
+* **Batch Upserting**: Upserts batches of 100–500 vectors per request for optimal throughput.
+* **Point Deletion**: Directly deletes orphaned chunk IDs during delta sync updates.
+* **Agent Querying**: Agent chat interfaces continue querying collections via the standard `vectordb_search` MCP tool.
+
+---
+
+## 9. Containerization & Docker Compose Integration (Issue #98)
+
+The ingestion service is containerized via `docker/Dockerfile.ingestion` and integrated into `docker-compose.yml`:
+
+### Multi-Stage Container Build
+* **Base & Builder**: Built on `python:3.13-slim` using `uv` for fast, deterministic dependency resolution. Installs PDF rendering and OCR system dependencies (`poppler-utils`, `tesseract-ocr`, `libgl1`).
+* **Security & Non-Root Execution**: Runs as non-root `appuser` (UID 10001) for SSDLC compliance.
+* **Exposed Port**: Runs Uvicorn ASGI server on port `8002` with 4 worker threads.
+
+### Docker Compose Service Configuration
+```yaml
+ingestion-service:
+  build:
+    context: .
+    dockerfile: docker/Dockerfile.ingestion
+  ports:
+    - "8002:8002"
+  environment:
+    - QDRANT_HOST=qdrant
+    - QDRANT_PORT=6333
+    - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006/v1/traces
+    - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    - LOG_LEVEL=INFO
+  volumes:
+    - ./data:/app/data
+  depends_on:
+    qdrant:
+      condition: service_healthy
+    phoenix:
+      condition: service_started
+  healthcheck:
+    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/healthz')"]
+    interval: 10s
+    timeout: 2s
+    retries: 3
+    start_period: 5s
+```
+
+
